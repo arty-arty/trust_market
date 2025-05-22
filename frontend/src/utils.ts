@@ -513,7 +513,7 @@ export const downloadFromWalrus = async (blobId: string): Promise<Uint8Array | n
     // Construct the URL using the absolute Walrus domain
     // The aggregator name might not be needed in the final URL structure based on your example
     // Assuming the structure is https://walrus-testnet.walrus.space/v1/blobs/<blobId>
-    const aggregatorUrl = `https://walrus-testnet.walrus.space/v1/blobs/${blobId}`;
+    const aggregatorUrl = `https://aggregator.walrus-testnet.walrus.space/v1/blobs/${blobId}`;
     console.log(`Attempting to download from Walrus via ${aggregatorUrl}`);
     
     try {
