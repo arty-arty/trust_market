@@ -482,7 +482,7 @@ export const uploadToWalrus = async (encryptedData: Uint8Array): Promise<string 
   
   for (const publisher of prioritizedPublishers) {
     // Construct the URL based on EncryptAndUpload.tsx: /<publisher_proxy_path>/v1/blobs?epochs=<num_epochs>
-    const publisherUrl = `/${publisher}/v1/blobs?epochs=${WALRUS_UPLOAD_EPOCHS}`;
+    const publisherUrl = `https://publisher.walrus-testnet.walrus.space/v1/blobs?epochs=${WALRUS_UPLOAD_EPOCHS}`;
     console.log(`Attempting to upload to Walrus via ${publisherUrl}`);
 
     try {
