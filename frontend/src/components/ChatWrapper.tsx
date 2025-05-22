@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { Card, Flex, Text, Box, TextField, Avatar, Badge, Dialog, IconButton, Button } from '@radix-ui/themes';
-import { Send, Image, Paperclip, X, CheckCircle, AlertCircle, User, History } from 'lucide-react';
+import { Send, Image, Paperclip, X, CheckCircle, AlertCircle, User, History, RefreshCw, Key } from 'lucide-react';
 import { ChatProvider, useChat } from '../contexts/ChatContext';
 import { Advertisement } from '../types';
 
@@ -46,9 +46,12 @@ const ChatUI: React.FC<ChatWrapperProps> = ({
   const { 
     messages, 
     isLoadingMessages: isLoading, 
-    error, 
+    error,
+    isInitializingKey,
+    keyInitializationError,
     sendMessage,
     sendFileMessage,
+    retryKeyInitialization,
     currentAdvertisementId,
     currentInteractionId,
     setCurrentChat,
@@ -102,9 +105,16 @@ const ChatUI: React.FC<ChatWrapperProps> = ({
   // Scroll to bottom of messages
   const scrollToBottom = (force = false) => {
     if (messagesEndRef.current) {
-      // Only use smooth scrolling for new messages, not for initial load
-      const behavior = force ? 'auto' : 'smooth';
-      messagesEndRef.current.scrollIntoView({ behavior });
+      const messageContainer = messagesEndRef.current.parentElement;
+      if (messageContainer) {
+        // Only use smooth scrolling for new messages, not for initial load
+        const behavior = force ? 'auto' : 'smooth';
+        // Use scrollTo on the container instead of scrollIntoView to avoid scrolling the outer page
+        messageContainer.scrollTo({
+          top: messageContainer.scrollHeight,
+          behavior
+        });
+      }
     }
   };
 
@@ -306,6 +316,58 @@ const ChatUI: React.FC<ChatWrapperProps> = ({
     );
   };
 
+  // Show key initialization status
+  const renderKeyInitializationStatus = () => {
+    if (isInitializingKey) {
+      return (
+        <Flex 
+          direction="column" 
+          align="center" 
+          justify="center" 
+          style={{ height: '100%', color: 'var(--blue-9)' }}
+        >
+          <RefreshCw size={48} className="animate-spin" />
+          <Text size="2" style={{ marginTop: '8px' }}>
+            Initializing secure chat...
+          </Text>
+          <Text size="1" style={{ marginTop: '4px', color: 'var(--gray-9)' }}>
+            Please sign the message in your wallet
+          </Text>
+        </Flex>
+      );
+    }
+
+    if (keyInitializationError) {
+      return (
+        <Flex 
+          direction="column" 
+          align="center" 
+          justify="center" 
+          style={{ height: '100%', color: 'var(--red-9)' }}
+        >
+          <AlertCircle size={48} />
+          <Text size="2" style={{ marginTop: '8px' }}>
+            Chat encryption failed
+          </Text>
+          <Text size="1" style={{ marginTop: '4px', color: 'var(--gray-9)', textAlign: 'center' }}>
+            {keyInitializationError}
+          </Text>
+          <Button 
+            variant="soft" 
+            size="2" 
+            style={{ marginTop: '12px' }}
+            onClick={retryKeyInitialization}
+          >
+            <RefreshCw size={16} />
+            Retry
+          </Button>
+        </Flex>
+      );
+    }
+
+    return null;
+  };
+
   return (
     <Card style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       {/* Messages area */}
@@ -317,37 +379,42 @@ const ChatUI: React.FC<ChatWrapperProps> = ({
         flexDirection: 'column',
         position: 'relative' // For loading overlay
       }}>
-        {/* Always render messages if we have them, even during loading */}
-        {messages.length === 0 ? (
-          <Flex 
-            direction="column" 
-            align="center" 
-            justify="center" 
-            style={{ height: '100%', color: 'var(--gray-9)' }}
-          >
-            <History size={48} />
-            <Text size="2" style={{ marginTop: '8px' }}>
-              {isLoading ? 'Loading messages...' : 'No messages yet'}
-            </Text>
-          </Flex>
-        ) : (
-          messages.map(renderMessage)
-        )}
-        
-        {/* Loading overlay - only show when we have messages */}
-        {isLoading && messages.length > 0 && (
-          <Box style={{
-            position: 'absolute',
-            top: '8px',
-            right: '8px',
-            background: 'var(--gray-3)',
-            padding: '4px 8px',
-            borderRadius: '4px',
-            fontSize: '12px',
-            opacity: 0.8
-          }}>
-            <Text size="1">Refreshing...</Text>
-          </Box>
+        {/* Show key initialization status if needed */}
+        {renderKeyInitializationStatus() || (
+          <>
+            {/* Always render messages if we have them, even during loading */}
+            {messages.length === 0 ? (
+              <Flex 
+                direction="column" 
+                align="center" 
+                justify="center" 
+                style={{ height: '100%', color: 'var(--gray-9)' }}
+              >
+                <History size={48} />
+                <Text size="2" style={{ marginTop: '8px' }}>
+                  {isLoading ? 'Loading messages...' : 'No messages yet'}
+                </Text>
+              </Flex>
+            ) : (
+              messages.map(renderMessage)
+            )}
+            
+            {/* Loading overlay - only show when we have messages */}
+            {isLoading && messages.length > 0 && (
+              <Box style={{
+                position: 'absolute',
+                top: '8px',
+                right: '8px',
+                background: 'var(--gray-3)',
+                padding: '4px 8px',
+                borderRadius: '4px',
+                fontSize: '12px',
+                opacity: 0.8
+              }}>
+                <Text size="1">Refreshing...</Text>
+              </Box>
+            )}
+          </>
         )}
         
         <div ref={messagesEndRef} />
@@ -366,7 +433,7 @@ const ChatUI: React.FC<ChatWrapperProps> = ({
         <IconButton 
           variant="ghost" 
           onClick={() => fileInputRef.current?.click()}
-          disabled={isSending}
+          disabled={isSending || isInitializingKey || !!keyInitializationError}
         >
           <Paperclip size={20} />
         </IconButton>
@@ -380,7 +447,13 @@ const ChatUI: React.FC<ChatWrapperProps> = ({
         
         <Box style={{ flex: 1 }}>
           <input 
-            placeholder="Type a message..." 
+            placeholder={
+              isInitializingKey 
+                ? "Initializing secure chat..." 
+                : keyInitializationError 
+                  ? "Chat encryption failed" 
+                  : "Type a message..."
+            }
             value={newMessage}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewMessage(e.target.value)}
             onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -389,7 +462,7 @@ const ChatUI: React.FC<ChatWrapperProps> = ({
                 handleSendMessage();
               }
             }}
-            disabled={isSending}
+            disabled={isSending || isInitializingKey || !!keyInitializationError}
             style={{ 
               width: '100%', 
               padding: '8px', 
@@ -402,7 +475,7 @@ const ChatUI: React.FC<ChatWrapperProps> = ({
         <Button 
           variant="solid" 
           onClick={handleSendMessage}
-          disabled={isSending || !newMessage.trim()}
+          disabled={isSending || !newMessage.trim() || isInitializingKey || !!keyInitializationError}
         >
           <Send size={18} />
         </Button>

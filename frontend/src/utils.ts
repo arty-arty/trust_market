@@ -304,43 +304,75 @@ export const decryptFileData = async (
 
 /**
  * Store an ephemeral key in session storage
+ * Simplified to use only advertisementId and interactionId
  * @param advertisementId The advertisement ID
- * @param interactionUserAddress The address of the user in the interaction (buyer)
  * @param interactionId The unique ID of the interaction
  * @param key The key to store
  */
 export const storeEphemeralKey = (
   advertisementId: string,
-  interactionUserAddress: string,
   interactionId: number,
   key: Uint8Array
 ): void => {
-  const keyId = `ephemeral_key_${advertisementId}_${interactionUserAddress}_${interactionId}`;
+  const keyId = `chat_key_${advertisementId}_${interactionId}`;
   const keyBase64 = btoa(String.fromCharCode(...key));
   sessionStorage.setItem(keyId, keyBase64);
+  console.log(`Stored ephemeral key for chat: ${keyId}`);
 };
 
 /**
  * Retrieve an ephemeral key from session storage
+ * Simplified to use only advertisementId and interactionId
  * @param advertisementId The advertisement ID
- * @param interactionUserAddress The address of the user in the interaction (buyer)
  * @param interactionId The unique ID of the interaction
  * @returns The key or null if not found
  */
 export const retrieveEphemeralKey = (
   advertisementId: string,
-  interactionUserAddress: string,
   interactionId: number
 ): Uint8Array | null => {
-  const keyId = `ephemeral_key_${advertisementId}_${interactionUserAddress}_${interactionId}`;
+  const keyId = `chat_key_${advertisementId}_${interactionId}`;
   const keyBase64 = sessionStorage.getItem(keyId);
   
-  if (!keyBase64) return null;
+  if (!keyBase64) {
+    console.log(`No ephemeral key found for chat: ${keyId}`);
+    return null;
+  }
   
+  console.log(`Retrieved ephemeral key for chat: ${keyId}`);
   return Uint8Array.from(
     atob(keyBase64),
     c => c.charCodeAt(0)
   );
+};
+
+/**
+ * Clear an ephemeral key from session storage
+ * @param advertisementId The advertisement ID
+ * @param interactionId The unique ID of the interaction
+ */
+export const clearEphemeralKey = (
+  advertisementId: string,
+  interactionId: number
+): void => {
+  const keyId = `chat_key_${advertisementId}_${interactionId}`;
+  sessionStorage.removeItem(keyId);
+  console.log(`Cleared ephemeral key for chat: ${keyId}`);
+};
+
+/**
+ * Clear all ephemeral keys from session storage
+ */
+export const clearAllEphemeralKeys = (): void => {
+  const keysToRemove: string[] = [];
+  for (let i = 0; i < sessionStorage.length; i++) {
+    const key = sessionStorage.key(i);
+    if (key && key.startsWith('chat_key_')) {
+      keysToRemove.push(key);
+    }
+  }
+  keysToRemove.forEach(key => sessionStorage.removeItem(key));
+  console.log(`Cleared ${keysToRemove.length} ephemeral keys`);
 };
 
 // Disclaimer Some Functions are inspired by Mysten's Seal Example :)

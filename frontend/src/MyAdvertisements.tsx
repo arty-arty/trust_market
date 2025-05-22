@@ -597,42 +597,32 @@ export function MyAdvertisements({ routeMode }: MyAdvertisementsProps) {
       </Dialog.Root>
       
       {/* Chat Dialog */}
-      {showChat && selectedAdvertisement && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.5)',
-          zIndex: 9998,
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
+      <Dialog.Root open={showChat && !!selectedAdvertisement} onOpenChange={setShowChat}>
+        <Dialog.Content style={{ 
+          maxWidth: '90vw', 
+          width: '90vw',
+          maxHeight: '90vh',
+          height: '90vh',
+          padding: '24px'
         }}>
-          <Card style={{
-            width: '80vw',
-            maxWidth: '90vw',
-            maxHeight: '90vh',
-            padding: '20px',
-            position: 'relative',
-            zIndex: 9999,
-          }}>
-            <Flex direction="column" gap="3">
-              <Flex justify="between" align="center">
-                <Heading size="4">
-                  Chat with {formatAddress(selectedAdvertisement.creator === currentAccount?.address 
-                    ? (selectedAdvertisement.userProfiles[currentAccount.address]?.interactions.find(i => i.id === selectedAdvertisement.userProfiles[currentAccount.address]?.interactions[0].id)?.user || '') 
-                    : selectedAdvertisement.creator)}
-                </Heading>
-                <Button variant="ghost" color="gray" onClick={() => setShowChat(false)}>
+          <Flex direction="column" gap="3" style={{ height: '100%' }}>
+            <Flex justify="between" align="center">
+              <Dialog.Title>
+                Chat with {selectedAdvertisement && formatAddress(selectedAdvertisement.creator === currentAccount?.address 
+                  ? (selectedAdvertisement.userProfiles[currentAccount.address]?.interactions.find(i => i.id === selectedAdvertisement.userProfiles[currentAccount.address]?.interactions[0].id)?.user || '') 
+                  : selectedAdvertisement.creator)}
+              </Dialog.Title>
+              <Dialog.Close>
+                <Button variant="ghost" color="gray">
                   <X size={18} />
                 </Button>
-              </Flex>
-              
-              <Separator />
-              
-              <Box style={{ height: '70vh' }}>
+              </Dialog.Close>
+            </Flex>
+            
+            <Separator />
+            
+            <Box style={{ flex: 1, minHeight: 0 }}>
+              {selectedAdvertisement && (
                 <ChatWrapper 
                   advertisement={selectedAdvertisement}
                   userAddress={currentAccount?.address || ''}
@@ -656,11 +646,11 @@ export function MyAdvertisements({ routeMode }: MyAdvertisementsProps) {
                     }
                   }}
                 />
-              </Box>
-            </Flex>
-          </Card>
-        </div>
-      )}
+              )}
+            </Box>
+          </Flex>
+        </Dialog.Content>
+      </Dialog.Root>
     </Flex>
   );
 }

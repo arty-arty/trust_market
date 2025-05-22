@@ -10,6 +10,7 @@ import {
   encryptMessage, 
   storeEphemeralKey, 
   retrieveEphemeralKey,
+  clearEphemeralKey,
   decryptEphemeralKey,
   encryptFileData,
   uploadToWalrus,
@@ -36,10 +37,15 @@ interface ChatContextType {
   isLoadingMessages: boolean;
   error: string | null;
   
+  // Key initialization state
+  isInitializingKey: boolean;
+  keyInitializationError: string | null;
+  
   // Chat functions
   sendMessage: (text: string) => Promise<void>;
   sendFileMessage: (file: File) => Promise<void>;
   loadMessages: (advertisementId: string, interactionId: number) => Promise<void>;
+  retryKeyInitialization: () => void;
   
   // Seal client
   sealClient: SealClient | null;
@@ -55,6 +61,13 @@ interface ChatContextType {
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
+// Global session key cache to prevent multiple initializations across components
+const globalSessionKeyCache = new Map<string, {
+  sessionKey: SessionKey | null;
+  isInitializing: boolean;
+  initPromise: Promise<SessionKey | null> | null;
+}>();
+
 export function ChatProvider({ children }: { children: ReactNode }) {
   const suiClient = useSuiClient();
   const currentAccount = useCurrentAccount();
@@ -68,13 +81,23 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [currentAdvertisementId, setCurrentAdvertisementId] = useState<string | null>(null);
   const [currentInteractionId, setCurrentInteractionId] = useState<number | null>(null);
   
-  // Use a ref for the polling interval to avoid dependency issues in useEffect
+  // Key initialization state
+  const [isInitializingKey, setIsInitializingKey] = useState(false);
+  const [keyInitializationError, setKeyInitializationError] = useState<string | null>(null);
+  
+  // Session key management - bulletproof approach
+  const [sessionKey, setSessionKey] = useState<SessionKey | null>(null);
+  const { mutate: signPersonalMessage } = useSignPersonalMessage();
+  const { mutate: signAndExecute } = useSignAndExecuteTransaction();
+  
+  // Polling management
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const [isFileUploading, setIsFileUploading] = useState(false);
+  const [uploadingFileIds, setUploadingFileIds] = useState<string[]>([]);
   
   // Initialize SealClient
   useEffect(() => {
     if (currentAccount && suiClient) {
-      // Create a new SealClient instance
       const client = new SealClient({
         suiClient,
         serverObjectIds: getAllowlistedKeyServers('testnet'),
@@ -84,56 +107,187 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
   }, [currentAccount, suiClient]);
 
-  // Session key management
-  const [sessionKey, setSessionKey] = useState<SessionKey | null>(null);
-  const [sessionKeyInitialized, setSessionKeyInitialized] = useState(false);
-  const { mutate: signPersonalMessage } = useSignPersonalMessage();
-  const { mutate: signAndExecute } = useSignAndExecuteTransaction();
-  
-  // Track if session key initialization is in progress
-  const sessionKeyInitInProgress = useRef(false);
-
-  // Fetch and decrypt the ephemeral key
-  const fetchEphemeralKey = useCallback(async (advertisementId: string, interactionId: number, interaction: Interaction) => {
-    if (!sealClient || !sessionKey) {
-      console.error('SealClient or SessionKey not initialized for fetchEphemeralKey');
-      // Try to initialize sessionKey if not already done
-      if (!sessionKey && !sessionKeyInitialized && !sessionKeyInitInProgress.current) {
-        // This part is tricky as initializeSessionKey is async and sets state
-        // For now, just log and return null, relying on other effects to init sessionKey
-        console.warn('SessionKey not available for fetchEphemeralKey, initialization might be pending.');
+  // Bulletproof session key initialization
+  const initializeSessionKey = useCallback(async (): Promise<SessionKey | null> => {
+    if (!currentAccount || !suiClient) {
+      return null;
+    }
+    
+    const userAddress = currentAccount.address;
+    const cacheKey = `${userAddress}_${packageId}`;
+    
+    // Check global cache first
+    const cached = globalSessionKeyCache.get(cacheKey);
+    if (cached) {
+      if (cached.sessionKey) {
+        console.log('Using cached session key');
+        setSessionKey(cached.sessionKey);
+        setIsInitializingKey(false);
+        setKeyInitializationError(null);
+        return cached.sessionKey;
       }
+      
+      if (cached.isInitializing && cached.initPromise) {
+        console.log('Session key initialization already in progress, waiting...');
+        setIsInitializingKey(true);
+        try {
+          const result = await cached.initPromise;
+          setSessionKey(result);
+          setIsInitializingKey(false);
+          setKeyInitializationError(result ? null : 'Failed to initialize session key');
+          return result;
+        } catch (err) {
+          setIsInitializingKey(false);
+          setKeyInitializationError('Failed to initialize session key');
+          return null;
+        }
+      }
+    }
+    
+    // Start new initialization
+    console.log('Starting new session key initialization...');
+    setIsInitializingKey(true);
+    setKeyInitializationError(null);
+    
+    const initPromise = new Promise<SessionKey | null>((resolve, reject) => {
+      try {
+        // Create a fresh session key
+        const newSessionKey = new SessionKey({
+          address: userAddress,
+          packageId,
+          ttlMin: 10, // 10 minutes TTL
+        });
+        
+        // Get the personal message to sign
+        const messageBytes = newSessionKey.getPersonalMessage();
+        
+        // Sign the message using the user's wallet
+        signPersonalMessage(
+          { message: messageBytes },
+          {
+            onSuccess: async (result) => {
+              try {
+                await newSessionKey.setPersonalMessageSignature(result.signature);
+                
+                // Update global cache
+                globalSessionKeyCache.set(cacheKey, {
+                  sessionKey: newSessionKey,
+                  isInitializing: false,
+                  initPromise: null
+                });
+                
+                console.log('Session key initialized successfully');
+                resolve(newSessionKey);
+              } catch (err) {
+                console.error('Error setting signature:', err);
+                globalSessionKeyCache.delete(cacheKey);
+                reject(new Error('Failed to complete key initialization'));
+              }
+            },
+            onError: (error) => {
+              console.error('User cancelled or error signing:', error);
+              globalSessionKeyCache.delete(cacheKey);
+              reject(new Error('Wallet signature required for secure chat'));
+            }
+          }
+        );
+      } catch (err) {
+        console.error('Error creating session key:', err);
+        globalSessionKeyCache.delete(cacheKey);
+        reject(new Error('Failed to initialize encryption key'));
+      }
+    });
+    
+    // Update global cache with initialization promise
+    globalSessionKeyCache.set(cacheKey, {
+      sessionKey: null,
+      isInitializing: true,
+      initPromise
+    });
+    
+    try {
+      const result = await initPromise;
+      setSessionKey(result);
+      setIsInitializingKey(false);
+      setKeyInitializationError(null);
+      return result;
+    } catch (err: any) {
+      setIsInitializingKey(false);
+      setKeyInitializationError(err.message || 'Failed to initialize session key');
+      return null;
+    }
+  }, [currentAccount, suiClient, packageId, signPersonalMessage]);
+
+  // Retry key initialization
+  const retryKeyInitialization = useCallback(() => {
+    if (currentAccount) {
+      const cacheKey = `${currentAccount.address}_${packageId}`;
+      globalSessionKeyCache.delete(cacheKey);
+    }
+    setKeyInitializationError(null);
+    initializeSessionKey();
+  }, [initializeSessionKey, currentAccount, packageId]);
+
+  // Helper function to find interaction
+  const findInteraction = useCallback((advertisement: Advertisement, interactionId: number): { interaction: Interaction; userAddress: string } | null => {
+    for (const [address, profile] of Object.entries(advertisement.userProfiles)) {
+      const interaction = profile.interactions.find(i => i.id === interactionId);
+      if (interaction) {
+        return { interaction, userAddress: address };
+      }
+    }
+    return null;
+  }, []);
+
+  // Get or fetch ephemeral key for a chat
+  const getEphemeralKey = useCallback(async (
+    advertisementId: string, 
+    interactionId: number
+  ): Promise<Uint8Array | null> => {
+    // First check if we have it in storage
+    let ephemeralKey = retrieveEphemeralKey(advertisementId, interactionId);
+    if (ephemeralKey) {
+      return ephemeralKey;
+    }
+    
+    // If not, we need to fetch and decrypt it
+    if (!sealClient || !sessionKey) {
+      console.error('SealClient or SessionKey not available for key fetching');
       return null;
     }
     
     try {
-      console.log('Fetching ephemeral key for interaction:', interactionId);
+      console.log(`Fetching ephemeral key for chat ${advertisementId}:${interactionId}`);
       
-      // Check if the interaction has an encrypted key
-      if (!interaction.chatEphemeralKeyEncrypted) {
-        console.warn('No encrypted key found for this interaction');
-        return null;
+      // Fetch the advertisement to get the interaction
+      const advertisement = await fetchAdvertisement(suiClient, advertisementId, packageId);
+      if (!advertisement) {
+        throw new Error('Advertisement not found');
       }
       
-      // Create a transaction to check access using the correct seal_approve signature
-      const tx = new Transaction();
+      // Find the interaction with the encrypted key
+      const result = findInteraction(advertisement, interactionId);
+      if (!result) {
+        throw new Error('Interaction not found');
+      }
       
-      // Convert the encrypted key to Uint8Array
+      const { interaction, userAddress: interactionUser } = result;
+      
+      if (!interaction.chatEphemeralKeyEncrypted) {
+        throw new Error('Encrypted key not found for this interaction');
+      }
+      
+      // Create transaction for access control
+      const tx = new Transaction();
       const encryptedKeyBytes = new Uint8Array(interaction.chatEphemeralKeyEncrypted);
       
-      // The interaction user is always the one who joined the advertisement
-      // This is the address that was used when encrypting the ephemeral key
-      const interactionUser = interaction.user;
-      
-      // ID is constructed the same way as in the marketplace.move contract
-      // This is critical for the decryption to work correctly
+      // Create the ID for decryption (same as in contract)
       const id = new Uint8Array([
         ...fromHex(advertisementId),
         ...fromHex(interactionUser),
         ...bcs.u64().serialize(interactionId).toBytes()
       ]);
       
-      // Create the transaction with the correct arguments
       tx.moveCall({
         target: `${packageId}::marketplace::seal_approve`,
         arguments: [
@@ -144,138 +298,64 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         ],
       });
       
-      // Build the transaction bytes (only transaction kind, no execution)
       const txBytes = await tx.build({ client: suiClient, onlyTransactionKind: true });
       
-      // Decrypt the key using the session key and transaction bytes
-      const decryptedKey = await decryptEphemeralKey(
+      // Decrypt the key
+      ephemeralKey = await decryptEphemeralKey(
         encryptedKeyBytes,
         sealClient,
         txBytes,
         sessionKey
       );
       
-  // Store the key in session storage for future use
-  storeEphemeralKey(advertisementId, interactionUser, interactionId, decryptedKey);
-      return decryptedKey;
+      // Store for future use
+      storeEphemeralKey(advertisementId, interactionId, ephemeralKey);
+      return ephemeralKey;
+      
     } catch (err) {
       console.error('Error fetching ephemeral key:', err);
-      setError('Failed to decrypt chat key. You may not have access to this chat.');
-      return null;
+      throw new Error('Failed to decrypt chat key. You may not have access to this chat.');
     }
-  }, [sealClient, sessionKey, packageId, suiClient, setError, storeEphemeralKey, fromHex, bcs, sessionKeyInitialized]); // Added sessionKeyInitialized
+  }, [sealClient, sessionKey, suiClient, packageId, findInteraction]);
 
-  // Track if a file upload is in progress - we'll use this to disable polling
-  const [isFileUploading, setIsFileUploading] = useState(false);
-  // Keep track of file messages that are being uploaded - these shouldn't be removed during polling
-  const [uploadingFileIds, setUploadingFileIds] = useState<string[]>([]);
-
-  // Refs for polling check to ensure latest state is used in interval
-  const isFileUploadingRef = useRef(isFileUploading);
-  useEffect(() => { isFileUploadingRef.current = isFileUploading; }, [isFileUploading]);
-
-  const uploadingFileIdsRef = useRef(uploadingFileIds);
-  useEffect(() => { uploadingFileIdsRef.current = uploadingFileIds; }, [uploadingFileIds]);
-  
-  // Load messages (defined before polling useEffect)
+  // Load messages for a chat - memoized to prevent excessive calls
   const loadMessages = useCallback(async (advertisementId: string, interactionId: number) => {
-    if (!suiClient || !currentAccount || !sealClient) {
-      setError('Client not initialized for loadMessages');
+    if (!suiClient || !currentAccount) {
+      setError('Client not initialized');
       return;
     }
     
-    // Don't clear existing messages while loading - just set loading state
     setIsLoadingMessages(true);
     setError(null);
     
     try {
-      // Fetch advertisement
-      const advertisement = await fetchAdvertisement(suiClient, advertisementId, packageId);
-      
-      if (!advertisement) {
-        setError('Advertisement not found');
-        setIsLoadingMessages(false);
-        return;
-      }
-      
-      // Find the interaction
-      let interaction: Interaction | undefined;
-      let userAddress = '';
-      
-      // Search through all user profiles to find the interaction
-      Object.entries(advertisement.userProfiles).forEach(([address, profile]) => {
-        const found = profile.interactions.find(i => i.id === interactionId);
-        if (found) {
-          interaction = found;
-          userAddress = address;
-        }
-      });
-      
-      if (!interaction) {
-        console.warn(`Interaction ${interactionId} not found for advertisement ${advertisementId}`);
-        setError('Interaction not found');
-        setIsLoadingMessages(false);
-        return;
-      }
-      
-      // Check if we have the ephemeral key in session storage
-      let ephemeralKey = retrieveEphemeralKey(advertisementId, userAddress, interactionId);
-      
-      // If not, try to fetch and decrypt it
-      if (!ephemeralKey && sessionKey && interaction.chatEphemeralKeyEncrypted) {
-        console.log(`No ephemeral key in storage, fetching for interaction ${interactionId}`);
-        // Ensure fetchEphemeralKey is called with a valid interaction object
-        const castedInteraction = interaction as Interaction; // Ensure type compatibility
-        ephemeralKey = await fetchEphemeralKey(advertisementId, interactionId, castedInteraction);
-        
-        if (!ephemeralKey) {
-          setError('Failed to decrypt chat key. You may not have access to this chat.');
-          setIsLoadingMessages(false);
-          return;
-        }
-      }
-      
+      // Get the ephemeral key
+      const ephemeralKey = await getEphemeralKey(advertisementId, interactionId);
       if (!ephemeralKey) {
-        setError('No ephemeral key available for decryption');
-        setIsLoadingMessages(false);
-        return;
+        throw new Error('No ephemeral key available for decryption');
       }
       
-      // Get chat messages
+      // Fetch advertisement and interaction
+      const advertisement = await fetchAdvertisement(suiClient, advertisementId, packageId);
+      if (!advertisement) {
+        throw new Error('Advertisement not found');
+      }
+      
+      const result = findInteraction(advertisement, interactionId);
+      if (!result) {
+        throw new Error('Interaction not found');
+      }
+      
+      const { interaction } = result;
+      
+      // Get and decrypt messages
       const chatMessages = interaction.chatMessages || [];
-      
-      // If we have uploading files, we need to be careful not to remove them when refreshing messages
-      if (uploadingFileIds.length > 0) {
-        // Keep any temporary upload messages in the list
-        const uploadingMessages = messages.filter(m => 
-          uploadingFileIds.includes(m.id) && m.status === 'sending'
-        );
-        
-        // Check if we already have the same messages from the server (to avoid unnecessary updates)
-        if (messages.length === chatMessages.length + uploadingMessages.length && 
-            messages.filter(m => !uploadingFileIds.includes(m.id))
-                   .every(m => chatMessages.some(cm => cm.id === m.id))) {
-          // Messages haven't changed, no need to update
-          setIsLoadingMessages(false);
-          return;
-        }
-      } else {
-        // Normal check if we don't have uploading files
-        if (messages.length === chatMessages.length && 
-            messages.every(m => chatMessages.some(cm => cm.id === m.id))) {
-          // Messages haven't changed, no need to update
-          setIsLoadingMessages(false);
-          return;
-        }
-      }
-      
-      // Decrypt messages
       const decryptedMessages: ChatMessage[] = [];
       
       for (const message of chatMessages) {
         try {
-          // If there's a blob ID, it's a file or image
           if (message.messageBlobId) {
+            // Handle file/image messages
             const encryptedFileData = await downloadFromWalrus(message.messageBlobId);
             if (encryptedFileData) {
               const { data: decryptedFileData, metadata } = await decryptFileData(encryptedFileData, ephemeralKey);
@@ -309,13 +389,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                 type: 'file',
               });
             }
-          } 
-          // If there's encrypted text, decrypt it
-          else if (message.messageEncryptedText) {
-            const decryptedText = await decryptMessage(
-              message.messageEncryptedText,
-              ephemeralKey
-            );
+          } else if (message.messageEncryptedText) {
+            // Handle text messages
+            const decryptedText = await decryptMessage(message.messageEncryptedText, ephemeralKey);
             decryptedMessages.push({
               ...message,
               text: decryptedText || 'Failed to decrypt message',
@@ -332,97 +408,58 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           console.error(`Error processing message ${message.id}:`, err);
           decryptedMessages.push({
             ...message,
-            text: message.messageBlobId ? '[Image - decryption failed]' : 'Failed to decrypt message',
+            text: message.messageBlobId ? '[File - decryption failed]' : 'Failed to decrypt message',
             type: message.messageBlobId ? 'image' : 'text',
           });
         }
       }
       
-      // Sort messages by timestamp
+      // Sort by timestamp and update state
       decryptedMessages.sort((a, b) => a.timestamp - b.timestamp);
       
-      // If we have uploading messages, we need to preserve them
+      // Preserve uploading messages
       if (uploadingFileIds.length > 0) {
-        // Keep any temporary upload messages
         const uploadingMessages = messages.filter(m => 
           uploadingFileIds.includes(m.id) && m.status === 'sending'
         );
-        
-        // Combine decrypted messages with uploading messages
-        if (decryptedMessages.length > 0 || uploadingMessages.length > 0) {
-          setMessages([...decryptedMessages, ...uploadingMessages]);
-        }
+        setMessages([...decryptedMessages, ...uploadingMessages]);
       } else {
-        // Normal update if we don't have uploading files
-        if (decryptedMessages.length > 0) {
-          setMessages(decryptedMessages);
-        }
+        setMessages(decryptedMessages);
       }
       
-      setIsLoadingMessages(false);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error loading messages:', err);
-      setError('Failed to load messages');
+      setError(err.message || 'Failed to load messages');
+    } finally {
       setIsLoadingMessages(false);
     }
-  }, [
-    suiClient, currentAccount, sealClient, packageId, sessionKey, 
-    fetchEphemeralKey, setError, setIsLoadingMessages, setMessages, 
-    messages, 
-    uploadingFileIds 
-  ]);
+  }, [suiClient, currentAccount, packageId, getEphemeralKey, findInteraction, uploadingFileIds]);
 
-  // Clean up polling interval when component unmounts
+  // Set up polling for message updates - fixed to prevent spam
   useEffect(() => {
-    return () => {
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
-        pollingIntervalRef.current = null;
-      }
-    };
-  }, []);
-  
-  // Set up polling when chat changes
-  useEffect(() => {
-    // Clear any existing polling interval
+    // Clear any existing interval
     if (pollingIntervalRef.current) {
       clearInterval(pollingIntervalRef.current);
       pollingIntervalRef.current = null;
     }
     
-    // Only set up polling if we have a valid chat
-    if (!currentAdvertisementId || currentInteractionId === null) {
+    // Only set up polling if we have a valid chat and session key
+    if (!currentAdvertisementId || currentInteractionId === null || !sessionKey) {
       return;
     }
     
     // Load messages immediately
     loadMessages(currentAdvertisementId, currentInteractionId);
     
-    // Set up polling every 5 seconds for a more responsive chat experience
-    const pollFn = () => {
-      // Use refs for the check to ensure latest values are used
-      if (isFileUploadingRef.current || uploadingFileIdsRef.current.length > 0) {
-        console.log("Skipping polling because a file is being uploaded (using refs)");
-        return;
+    // Set up polling every 3 seconds
+    pollingIntervalRef.current = setInterval(() => {
+      // Only poll if not uploading files and we still have the same chat
+      if (!isFileUploading && uploadingFileIds.length === 0 && 
+          currentAdvertisementId && currentInteractionId !== null) {
+        console.log(`Polling messages for ${currentAdvertisementId}:${currentInteractionId}`);
+        loadMessages(currentAdvertisementId, currentInteractionId);
       }
-      
-      if (currentAdvertisementId && currentInteractionId !== null) {
-        // Add timestamp to avoid multiple components polling at the same time
-        const now = Date.now();
-        const lastPollTime = parseInt(sessionStorage.getItem(`last_poll_${currentAdvertisementId}_${currentInteractionId}`) || '0');
-        
-        // Only poll if it's been at least 4 seconds since the last poll from any component
-        if (now - lastPollTime > 4000) {
-          sessionStorage.setItem(`last_poll_${currentAdvertisementId}_${currentInteractionId}`, now.toString());
-          console.log(`Polling for messages at ${new Date().toLocaleTimeString()} (using refs)`);
-          loadMessages(currentAdvertisementId, currentInteractionId);
-        } else {
-          console.log(`Skipping poll, last poll was ${(now - lastPollTime)/1000}s ago (using refs)`);
-        }
-      }
-    };
-
-    pollingIntervalRef.current = setInterval(pollFn, 5000);
+    }, 3000);
     
     return () => {
       if (pollingIntervalRef.current) {
@@ -430,180 +467,59 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         pollingIntervalRef.current = null;
       }
     };
-  }, [currentAdvertisementId, currentInteractionId, loadMessages]); // Added loadMessages
-  
+  }, [currentAdvertisementId, currentInteractionId, sessionKey, isFileUploading, uploadingFileIds]);
+
   // Set current chat
-  const setCurrentChat = (advertisementId: string | null, interactionId: number | null) => {
-    // Clear messages when changing chats
+  const setCurrentChat = useCallback((advertisementId: string | null, interactionId: number | null) => {
     if (advertisementId !== currentAdvertisementId || interactionId !== currentInteractionId) {
       setMessages([]);
+      setError(null);
     }
-    
     setCurrentAdvertisementId(advertisementId);
     setCurrentInteractionId(interactionId);
-  };
-  
-  // Initialize the session key for Seal encryption
+  }, [currentAdvertisementId, currentInteractionId]);
+
+  // Initialize session key when account changes - bulletproof approach
   useEffect(() => {
-    // Use a ref to track if initialization is in progress to prevent multiple sign requests
-    if (sessionKeyInitInProgress.current || sessionKeyInitialized || !currentAccount || !suiClient) {
-      return;
+    if (currentAccount && suiClient && !sessionKey && !isInitializingKey) {
+      initializeSessionKey();
     }
-    
-    const initializeSessionKey = async () => {
-      // Set flag to prevent multiple initializations
-      sessionKeyInitInProgress.current = true;
-      
-      try {
-        console.log('Starting session key initialization');
-        
-        // Check if we already have a session key in localStorage
-        const storedSessionKey = localStorage.getItem(`seal_session_key_${currentAccount.address}`);
-        if (storedSessionKey) {
-          try {
-            // Try to parse and use the stored session key
-            const parsedKey = JSON.parse(storedSessionKey);
-            if (parsedKey && parsedKey.expiry > Date.now()) {
-              console.log('Using cached session key');
-              const restoredKey = new SessionKey({
-                address: currentAccount.address,
-                packageId,
-                ttlMin: 5,
-              });
-              
-              // Restore the signature
-              await restoredKey.setPersonalMessageSignature(parsedKey.signature);
-              
-              setSessionKey(restoredKey);
-              setSessionKeyInitialized(true);
-              sessionKeyInitInProgress.current = false;
-              return;
-            } else {
-              console.log('Cached session key expired, creating new one');
-              localStorage.removeItem(`seal_session_key_${currentAccount.address}`);
-            }
-          } catch (err) {
-            console.error('Error restoring session key:', err);
-            localStorage.removeItem(`seal_session_key_${currentAccount.address}`);
+  }, [currentAccount, suiClient, sessionKey, isInitializingKey, initializeSessionKey]);
+
+  // Clean up cache when account changes
+  useEffect(() => {
+    return () => {
+      // Clean up when component unmounts or account changes
+      if (currentAccount) {
+        const cacheKey = `${currentAccount.address}_${packageId}`;
+        const cached = globalSessionKeyCache.get(cacheKey);
+        if (cached && !cached.isInitializing) {
+          // Keep successful session keys, only clean up failed ones
+          if (!cached.sessionKey) {
+            globalSessionKeyCache.delete(cacheKey);
           }
         }
-        
-        // Create a new session key
-        const newSessionKey = new SessionKey({
-          address: currentAccount.address,
-          packageId,
-          ttlMin: 5, // TTL of 5 minutes
-        });
-        
-        // Get the personal message to sign
-        const messageBytes = newSessionKey.getPersonalMessage();
-        
-        // Sign the message using the user's wallet
-        signPersonalMessage(
-          {
-            message: messageBytes,
-          },
-          {
-            onSuccess: async (result) => {
-              try {
-                // Set the signature to complete initialization
-                await newSessionKey.setPersonalMessageSignature(result.signature);
-                console.log('Session key initialized successfully');
-                
-                // Store the session key
-                setSessionKey(newSessionKey);
-                setSessionKeyInitialized(true);
-                
-                // Cache the session key in localStorage
-                localStorage.setItem(`seal_session_key_${currentAccount.address}`, JSON.stringify({
-                  signature: result.signature,
-                  expiry: Date.now() + (4 * 60 * 1000) // 4 minutes (slightly less than TTL)
-                }));
-              } catch (err) {
-                console.error('Error setting personal message signature:', err);
-                setError('Failed to initialize session key. Please try again.');
-              } finally {
-                sessionKeyInitInProgress.current = false;
-              }
-            },
-            onError: (error) => {
-              console.error('Error signing personal message:', error);
-              setError('Failed to sign message for encryption. Please try again.');
-              sessionKeyInitInProgress.current = false;
-            }
-          }
-        );
-      } catch (err) {
-        console.error('Error initializing session key:', err);
-        setError('Failed to initialize encryption. Some features may not work properly.');
-        sessionKeyInitInProgress.current = false;
       }
     };
-    
-    initializeSessionKey();
-  }, [currentAccount, suiClient, packageId, signPersonalMessage, sessionKeyInitialized]);
+  }, [currentAccount?.address, packageId]);
 
-  // Send message
-  const sendMessage = async (text: string) => {
-    if (!suiClient || !currentAccount || !sealClient || !currentAdvertisementId || currentInteractionId === null) {
-      setError('Client not initialized or chat not selected');
+  // Send text message
+  const sendMessage = useCallback(async (text: string) => {
+    if (!suiClient || !currentAccount || !currentAdvertisementId || currentInteractionId === null) {
+      setError('Chat not properly initialized');
       return;
     }
     
     setError(null);
     
     try {
-      // First try to get the ephemeral key from the user's address in the interaction
-      let ephemeralKey = retrieveEphemeralKey(currentAdvertisementId, currentAccount.address, currentInteractionId);
-      
-      // If that fails, try to get it from the interaction.
-      // This can happen if the user is the creator of the advertisement
-      // In that case, we need to check advertisement user profiles to find the right interaction user
+      // Get ephemeral key
+      const ephemeralKey = await getEphemeralKey(currentAdvertisementId, currentInteractionId);
       if (!ephemeralKey) {
-        console.log("Attempting to retrieve ephemeral key from alternative sources...");
-        
-        try {
-          // Fetch advertisement to get user profiles and interactions
-          const advertisement = await fetchAdvertisement(suiClient, currentAdvertisementId, packageId);
-          
-          if (advertisement) {
-            let interactionUser = '';
-            let interaction;
-            
-            // Look through all user profiles to find the current interaction
-            Object.entries(advertisement.userProfiles).forEach(([address, profile]) => {
-              const found = profile.interactions.find(i => i.id === currentInteractionId);
-              if (found) {
-                interaction = found;
-                interactionUser = address;
-              }
-            });
-            
-            // If we found the interaction and its user, try to get the ephemeral key using that
-            if (interaction && interactionUser) {
-              console.log(`Found interaction. Trying with user: ${interactionUser}`);
-              ephemeralKey = retrieveEphemeralKey(currentAdvertisementId, interactionUser, currentInteractionId);
-              
-  // If still not found, try to fetch and decrypt it - cast interaction as any to access chatEphemeralKeyEncrypted
-  const activeInteraction = interaction as any;
-  if (!ephemeralKey && activeInteraction && typeof activeInteraction === 'object' && 
-      activeInteraction.chatEphemeralKeyEncrypted && 
-      sessionKey) {
-    console.log("Attempting to fetch and decrypt ephemeral key...");
-    ephemeralKey = await fetchEphemeralKey(currentAdvertisementId, currentInteractionId, activeInteraction);
-  }
-            }
-          }
-        } catch (err) {
-          console.error("Error while trying to find ephemeral key:", err);
-        }
+        throw new Error('No ephemeral key available for encryption');
       }
       
-      if (!ephemeralKey) {
-        throw new Error('No ephemeral key available for encryption. Please try refreshing the page.');
-      }
-      
-      // Create a temporary message to show in the UI
+      // Create temporary message for UI
       const tempMessage: ChatMessage = {
         id: `temp-${Date.now()}`,
         advertisementId: currentAdvertisementId,
@@ -614,36 +530,29 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         messageEncryptedText: '',
         messageBlobId: '',
         text: text,
+        status: 'sending',
       };
       
-      // Add to UI immediately
       setMessages(prev => [...prev, tempMessage]);
       
-      // Get the advertisement to determine the correct user address
+      // Get the correct interaction user address
       const advertisement = await fetchAdvertisement(suiClient, currentAdvertisementId, packageId);
       if (!advertisement) {
         throw new Error('Advertisement not found');
       }
       
-      // Find the interaction to get the correct interaction user
       let interactionUser = currentAccount.address;
-      let isCreator = advertisement.creator === currentAccount.address;
+      const isCreator = advertisement.creator === currentAccount.address;
       
-      // If current user is the creator (freelancer), we need to use the other party's address
       if (isCreator) {
-        // Find the interaction and its user
-        Object.entries(advertisement.userProfiles).forEach(([address, profile]) => {
-          const found = profile.interactions.find(i => i.id === currentInteractionId);
-          if (found) {
-            // Use the client's address for the interaction_user, not the creator's
-            interactionUser = address;
-          }
-        });
+        // Find the client's address for this interaction
+        const result = findInteraction(advertisement, currentInteractionId);
+        if (result) {
+          interactionUser = result.userAddress;
+        }
       }
       
-      console.log(`Sending message as ${currentAccount.address}, interaction user: ${interactionUser}`);
-      
-      // Create transaction to add the message
+      // Create and execute transaction
       const tx = await addChatMessage(
         packageId,
         currentAdvertisementId,
@@ -653,53 +562,46 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         ephemeralKey
       );
       
-      // Execute the transaction
       signAndExecute(
-        {
-          transaction: tx,
-        },
+        { transaction: tx },
         {
           onSuccess: (result) => {
             console.log('Message sent successfully:', result);
-            // Update the temporary message to sent status
             setMessages(prev => 
               prev.map(msg => 
                 msg.id === tempMessage.id 
-                  ? { ...msg, id: result.digest } 
+                  ? { ...msg, id: result.digest, status: 'sent' } 
                   : msg
               )
             );
           },
           onError: (error) => {
             console.error('Error sending message:', error);
-            setError('Failed to send message. Please try again.');
-            // Remove the temporary message
+            setError('Failed to send message');
             setMessages(prev => prev.filter(msg => msg.id !== tempMessage.id));
           }
         }
       );
-    } catch (err) {
-      console.error('Error preparing message transaction:', err);
-      setError('Failed to prepare message transaction. Please try again.');
-      // Remove any temporary messages
+    } catch (err: any) {
+      console.error('Error preparing message:', err);
+      setError(err.message || 'Failed to prepare message');
       setMessages(prev => prev.filter(msg => !msg.id.startsWith('temp-')));
     }
-  };
-  
+  }, [suiClient, currentAccount, currentAdvertisementId, currentInteractionId, packageId, getEphemeralKey, signAndExecute, findInteraction]);
+
   // Send file message
-  const sendFileMessage = async (file: File) => {
-    // Set flag to disable polling during upload
-    setIsFileUploading(true);
-    if (!suiClient || !currentAccount || !sealClient || !currentAdvertisementId || currentInteractionId === null) {
-      setError('Client not initialized or chat not selected for file sending.');
+  const sendFileMessage = useCallback(async (file: File) => {
+    if (!suiClient || !currentAccount || !currentAdvertisementId || currentInteractionId === null) {
+      setError('Chat not properly initialized');
       return;
     }
 
+    setIsFileUploading(true);
     setError(null);
+    
     const tempId = `temp-file-${Date.now()}`;
     const isImage = file.type.startsWith('image/');
 
-    // Create a temporary message to show in the UI
     const tempMessage: ChatMessage = {
       id: tempId,
       advertisementId: currentAdvertisementId,
@@ -714,76 +616,24 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       status: 'sending',
     };
 
-    // Register this message as being uploaded so it doesn't get removed during polling
     setUploadingFileIds(prev => [...prev, tempId]);
-    
-    // Add to UI immediately to show the upload animation
     setMessages(prev => [...prev, tempMessage]);
 
-    // We won't update the message until it's ready for wallet signing
-    let uploadedBlodId: string | null = null;
-
     try {
-      // Use the same ephemeral key retrieval logic that works for regular messages
-      // First try to get the ephemeral key from the user's address in the interaction
-      let ephemeralKey = retrieveEphemeralKey(currentAdvertisementId, currentAccount.address, currentInteractionId);
-      
-      // If that fails, try to get it from the interaction.
-      // This can happen if the user is the creator of the advertisement
+      // Get ephemeral key
+      const ephemeralKey = await getEphemeralKey(currentAdvertisementId, currentInteractionId);
       if (!ephemeralKey) {
-        console.log("Attempting to retrieve ephemeral key from alternative sources for file upload...");
-        
-        try {
-          // Fetch advertisement to get user profiles and interactions
-          const advertisement = await fetchAdvertisement(suiClient, currentAdvertisementId, packageId);
-          
-          if (advertisement) {
-            let interactionUser = '';
-            let interaction;
-            
-            // Look through all user profiles to find the current interaction
-            Object.entries(advertisement.userProfiles).forEach(([address, profile]) => {
-              const found = profile.interactions.find(i => i.id === currentInteractionId);
-              if (found) {
-                interaction = found;
-                interactionUser = address;
-              }
-            });
-            
-            // If we found the interaction and its user, try to get the ephemeral key using that
-            if (interaction && interactionUser) {
-              console.log(`Found interaction. Trying with user: ${interactionUser}`);
-              ephemeralKey = retrieveEphemeralKey(currentAdvertisementId, interactionUser, currentInteractionId);
-              
-              // If still not found, try to fetch and decrypt it - cast to any to access chatEphemeralKeyEncrypted
-              const activeInteraction = interaction as any;
-              if (!ephemeralKey && activeInteraction && typeof activeInteraction === 'object' && 
-                  activeInteraction.chatEphemeralKeyEncrypted && 
-                  sessionKey) {
-                console.log("Attempting to fetch and decrypt ephemeral key for file upload...");
-                ephemeralKey = await fetchEphemeralKey(currentAdvertisementId, currentInteractionId, activeInteraction);
-              }
-            }
-          }
-        } catch (err) {
-          console.error("Error while trying to find ephemeral key for file upload:", err);
-        }
-      }
-      
-      if (!ephemeralKey) {
-        throw new Error('No ephemeral key available for file encryption. Please try refreshing the page.');
+        throw new Error('No ephemeral key available for file encryption');
       }
 
-      // Read the file data
+      // Prepare file data
       const fileData = new Uint8Array(await file.arrayBuffer());
-
-      // Create metadata for non-image files
       let metadata: FileMetadata | undefined;
+      
       if (!isImage) {
         const filenameParts = file.name.split('.');
         const extension = filenameParts.length > 1 ? filenameParts.pop() || '' : '';
         const filename = filenameParts.join('.');
-
         metadata = {
           filename,
           extension,
@@ -792,89 +642,57 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         };
       }
 
-      // Encrypt the file data
+      // Encrypt and upload
       const encryptedFileData = await encryptFileData(fileData, ephemeralKey, metadata);
-      
-      // Upload to Walrus - keep the animation showing
-      console.log("Uploading encrypted file to Walrus...");
       const blobId = await uploadToWalrus(encryptedFileData);
 
       if (!blobId) {
-        setError('Failed to upload file to Walrus.');
-        setMessages(prev => prev.map(msg => 
-          msg.id === tempId ? { ...msg, status: 'failed', text: '[File - send failed]' } : msg
-        ));
-        // Ensure isFileUploading is reset and tempId is removed on Walrus upload failure
-        setIsFileUploading(false);
-        setUploadingFileIds(prev => prev.filter(id => id !== tempId));
-        return;
+        throw new Error('Failed to upload file to Walrus');
       }
-      
-      // Save the successful blobId for transaction preparation
-      uploadedBlodId = blobId;
 
-      // Get the advertisement to determine the correct user address
-      // We're still preparing for the wallet signing, so keep the animation
-      console.log("File uploaded to Walrus successfully, preparing transaction...");
+      // Get interaction user address
       const advertisement = await fetchAdvertisement(suiClient, currentAdvertisementId, packageId);
       if (!advertisement) {
         throw new Error('Advertisement not found');
       }
       
-      // Find the interaction to get the correct interaction user
       let interactionUser = currentAccount.address;
-      let isCreator = advertisement.creator === currentAccount.address;
+      const isCreator = advertisement.creator === currentAccount.address;
       
-      // If current user is the creator (freelancer), we need to use the other party's address
       if (isCreator) {
-        // Find the interaction and its user
-        Object.entries(advertisement.userProfiles).forEach(([address, profile]) => {
-          const found = profile.interactions.find(i => i.id === currentInteractionId);
-          if (found) {
-            // Use the client's address for the interaction_user, not the creator's
-            interactionUser = address;
-          }
-        });
+        const result = findInteraction(advertisement, currentInteractionId);
+        if (result) {
+          interactionUser = result.userAddress;
+        }
       }
       
-      console.log(`Sending file message as ${currentAccount.address}, interaction user: ${interactionUser}`);
-      
-      // Create transaction to add the message with the blob ID
+      // Create transaction
       const tx = await addChatMessage(
         packageId,
         currentAdvertisementId,
         interactionUser,
         currentInteractionId,
-        { blobId: blobId },
+        { blobId },
         ephemeralKey
       );
 
-      // Update the message to show it's ready for signing
-      // We're doing this just before signing to ensure the animation shows during the upload
-      const displayText = isImage ? '[Image - waiting for wallet...]' : `[File: ${file.name} - waiting for wallet...]`;
+      // Update message to show wallet prompt
       setMessages(prev =>
         prev.map(msg =>
           msg.id === tempId
-            ? { ...msg, text: displayText }
+            ? { ...msg, text: isImage ? '[Image - waiting for wallet...]' : `[File: ${file.name} - waiting for wallet...]` }
             : msg
         )
       );
 
-      // Keep the upload animation visible until the wallet opens
-      // The actual wallet prompt happens when signAndExecute is called
-            
-      // Execute the transaction - wallet will show after this call
       signAndExecute(
         { transaction: tx },
         {
           onSuccess: (result) => {
-            console.log("Transaction successful with digest:", result.digest);
+            console.log('File message sent successfully:', result);
             const displayText = isImage ? '[Image]' : `[File: ${file.name}]`;
             
-            // Mark upload complete
             setIsFileUploading(false);
-            
-            // Remove this ID from the uploading list
             setUploadingFileIds(prev => prev.filter(id => id !== tempId));
             
             setMessages(prev =>
@@ -885,17 +703,16 @@ export function ChatProvider({ children }: { children: ReactNode }) {
               )
             );
             
-            // Reload messages to get the proper URL
-            loadMessages(currentAdvertisementId, currentInteractionId);
+            // Reload messages to get proper URLs
+            if (currentAdvertisementId && currentInteractionId !== null) {
+              loadMessages(currentAdvertisementId, currentInteractionId);
+            }
           },
           onError: (error) => {
             console.error('Error sending file message:', error);
-            setError('Failed to send file. Please try again.');
+            setError('Failed to send file');
             
-            // Mark upload complete even on error
             setIsFileUploading(false);
-            
-            // Remove this ID from the uploading list on error too
             setUploadingFileIds(prev => prev.filter(id => id !== tempId));
             
             setMessages(prev =>
@@ -908,12 +725,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       );
     } catch (err: any) {
       console.error('Error preparing file message:', err);
-      setError(err.message || 'Failed to prepare file message. Please try again.');
+      setError(err.message || 'Failed to prepare file message');
       
-      // Mark upload complete on error
       setIsFileUploading(false);
-      
-      // Remove from uploading files list
       setUploadingFileIds(prev => prev.filter(id => id !== tempId));
       
       setMessages(prev =>
@@ -922,15 +736,18 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         )
       );
     }
-  };
+  }, [suiClient, currentAccount, currentAdvertisementId, currentInteractionId, packageId, getEphemeralKey, signAndExecute, findInteraction, loadMessages]);
 
   const value = {
     messages,
     isLoadingMessages,
     error,
+    isInitializingKey,
+    keyInitializationError,
     sendMessage,
     sendFileMessage,
     loadMessages,
+    retryKeyInitialization,
     sealClient,
     currentAdvertisementId,
     currentInteractionId,
