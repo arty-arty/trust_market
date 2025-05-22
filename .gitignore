@@ -1,4 +1,6 @@
 /frontend/node_modules
 /frontend/.env
+/frontend/dist
 /move/build
 /move/node_modules
+*.tsbuildinfo

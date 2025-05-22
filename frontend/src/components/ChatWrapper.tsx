@@ -29,6 +29,9 @@ interface ChatWrapperProps {
   isCreator: boolean;
   isAdmin: boolean;
   debugMode?: boolean;
+  onMarkCompleted? : any;
+  onDispute? : any;
+  onReleasePayment? : any;
 }
 
 // Inner component that uses the context

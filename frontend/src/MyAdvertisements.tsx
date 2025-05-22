@@ -640,17 +640,17 @@ export function MyAdvertisements({ routeMode }: MyAdvertisementsProps) {
                   isCreator={selectedAdvertisement.creator === currentAccount?.address}
                   isAdmin={false}
                   debugMode={false}
-                  onMarkCompleted={(userAddress, interactionId) => {
+                  onMarkCompleted={(userAddress: string, interactionId: number) => {
                     if (selectedAdvertisement) {
                       showMarkCompletedDialog(selectedAdvertisement.id, userAddress, interactionId);
                     }
                   }}
-                  onDispute={(userAddress, interactionId) => {
+                  onDispute={(userAddress: string, interactionId: number) => {
                     if (selectedAdvertisement) {
                       showDisputeDialog(selectedAdvertisement.id, userAddress, interactionId);
                     }
                   }}
-                  onReleasePayment={(interactionId) => {
+                  onReleasePayment={(interactionId: number) => {
                     if (selectedAdvertisement) {
                       showReleaseDialog(selectedAdvertisement.id, interactionId);
                     }
