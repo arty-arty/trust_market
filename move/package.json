@@ -1,0 +1,14 @@
+{
+  "name": "marketplace-contract",
+  "version": "1.0.0",
+  "description": "Trust Marketplace - A P2P Marketplace on SUI with Seal-encrypted chat functionality",
+  "main": "deploy.js",
+  "scripts": {
+    "deploy": "node deploy.js",
+    "build": "sui move build"
+  },
+  "dependencies": {
+    "@mysten/sui": "^0.0.0-experimental-20230712151902",
+    "dotenv": "^16.0.3"
+  }
+}
