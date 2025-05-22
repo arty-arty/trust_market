@@ -1,9 +1,7 @@
 import React, { useState, useEffect } from 'react';
-// Removed duplicate React import line
 import { useCurrentAccount, useSuiClient, useSignAndExecuteTransaction } from '@mysten/dapp-kit';
-import { Button, Card, Flex, Grid, Text, Heading, Badge, Slider, Checkbox, Box, Dialog } from '@radix-ui/themes';
 import { useNetworkVariable } from './networkConfig';
-import { Link } from 'react-router-dom'; // Re-added Link
+import { Link } from 'react-router-dom';
 import { Search, Star, DollarSign, Users, Clock, Filter } from 'lucide-react';
 import { Advertisement, UserReputation } from './types';
 import { 
@@ -184,7 +182,12 @@ export function BrowseAdvertisements() {
   // Get state badge
   const getStateBadge = (state: number) => {
     const stateInfo = getStateInfo(state);
-    return <Badge color={stateInfo.color as any}>{stateInfo.label}</Badge>;
+    const colorClass = stateInfo.color === 'blue' ? 'design-badge-info' : 
+                       stateInfo.color === 'green' ? 'design-badge-success' :
+                       stateInfo.color === 'red' ? 'design-badge-error' :
+                       stateInfo.color === 'yellow' ? 'design-badge-warning' : 'design-badge-info';
+    
+    return <span className={`design-badge ${colorClass}`}>{stateInfo.label}</span>;
   };
   
   // Check if the advertisement is created by the current user
@@ -198,7 +201,7 @@ export function BrowseAdvertisements() {
     const hasHalfStar = rating % 1 >= 0.5;
     
     return (
-      <Flex gap="1" align="center">
+      <div className="design-flex design-gap-1" style={{ alignItems: 'center' }}>
         {[...Array(fullStars)].map((_, i) => (
           <Star key={i} size={14} fill="var(--amber-9)" color="var(--amber-9)" />
         ))}
@@ -210,214 +213,282 @@ export function BrowseAdvertisements() {
             </div>
           </div>
         )}
-        <Text size="2" style={{ marginLeft: '4px' }}>{rating.toFixed(1)}</Text>
-      </Flex>
+        <span style={{ marginLeft: 'var(--space-1)', fontSize: '14px' }}>{rating.toFixed(1)}</span>
+      </div>
     );
   };
   
   return (
-    <Flex direction="column" gap="4">
-      <Flex justify="between" align="center">
-        <Heading size="5">Browse Advertisements</Heading>
+    <div className="design-flex design-flex-col design-gap-6">
+      <div className="design-flex design-flex-between" style={{ alignItems: 'center' }}>
+        <h2 className="design-heading-2">Browse Advertisements</h2>
         <Link to="/marketplace/create">
-          <Button>Create Advertisement</Button>
+          <button className="design-button design-button-primary">Create Advertisement</button>
         </Link>
-      </Flex>
+      </div>
       
-      <Card>
-        <Flex direction="column" gap="3">
+      <div className="design-card">
+        <div className="design-flex design-flex-col design-gap-4">
           {/* Search and filters */}
-          <Flex gap="3" align="center">
-            <Flex style={{ position: 'relative', flex: 1 }}>
-              <Search size={16} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--gray-9)' }} />
+          <div className="design-flex design-gap-3" style={{ alignItems: 'center' }}>
+            <div className="design-search-container" style={{ flex: 1 }}>
+              <Search size={16} className="design-search-icon" />
               <input
+                className="design-input design-search-input"
                 placeholder="Search advertisements..."
                 value={searchQuery}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
-                style={{ 
-                  width: '100%', 
-                  padding: '8px 8px 8px 32px', 
-                  borderRadius: '4px', 
-                  border: '1px solid var(--gray-5)' 
-                }}
               />
-            </Flex>
-            <Button variant="soft" onClick={() => setShowFilters(!showFilters)}>
+            </div>
+            <button 
+              className="design-button design-button-secondary"
+              onClick={() => setShowFilters(!showFilters)}
+            >
               <Filter size={16} />
               Filters
-            </Button>
-          </Flex>
+            </button>
+          </div>
           
           {/* Advanced filters */}
           {showFilters && (
-            <Card style={{ backgroundColor: 'var(--gray-2)' }}>
-              <Flex direction="column" gap="3">
-                <Flex gap="3" align="center">
-                  <Checkbox checked={showBuyOnly} onCheckedChange={() => setShowBuyOnly(!showBuyOnly)} id="buy-only" />
-                  <label htmlFor="buy-only">Buy advertisements only</label>
+            <div className="design-card" style={{ backgroundColor: 'var(--gray-3)', padding: 'var(--space-4)' }}>
+              <div className="design-flex design-flex-col design-gap-4">
+                <div className="design-flex design-gap-4" style={{ alignItems: 'center' }}>
+                  <label className="design-flex design-gap-2" style={{ alignItems: 'center', cursor: 'pointer' }}>
+                    <input 
+                      type="checkbox" 
+                      checked={showBuyOnly} 
+                      onChange={() => setShowBuyOnly(!showBuyOnly)} 
+                      style={{ margin: 0 }}
+                    />
+                    <span>Buy advertisements only</span>
+                  </label>
                   
-                  <Checkbox checked={showSellOnly} onCheckedChange={() => setShowSellOnly(!showSellOnly)} id="sell-only" />
-                  <label htmlFor="sell-only">Sell advertisements only</label>
-                </Flex>
+                  <label className="design-flex design-gap-2" style={{ alignItems: 'center', cursor: 'pointer' }}>
+                    <input 
+                      type="checkbox" 
+                      checked={showSellOnly} 
+                      onChange={() => setShowSellOnly(!showSellOnly)} 
+                      style={{ margin: 0 }}
+                    />
+                    <span>Sell advertisements only</span>
+                  </label>
+                </div>
                 
-                <Flex direction="column" gap="1">
-                  <Text size="2" weight="bold">Minimum Seller Rating</Text>
-                  <Flex gap="3" align="center">
-                    <Slider 
-                      value={[minRating]} 
-                      onValueChange={(value) => setMinRating(value[0])} 
+                <div className="design-form-group">
+                  <label className="design-form-label">Minimum Seller Rating</label>
+                  <div className="design-flex design-gap-3" style={{ alignItems: 'center' }}>
+                    <input 
+                      type="range" 
+                      value={minRating} 
+                      onChange={(e) => setMinRating(parseFloat(e.target.value))} 
                       min={0} 
                       max={5} 
                       step={0.5}
                       style={{ flex: 1 }}
+                      className="design-slider"
                     />
-                    <Text size="2">{minRating} ★</Text>
-                  </Flex>
-                </Flex>
+                    <span style={{ fontSize: '14px' }}>{minRating} ★</span>
+                  </div>
+                </div>
                 
-                <Flex direction="column" gap="1">
-                  <Text size="2" weight="bold">Minimum Completed Deals</Text>
-                  <Flex gap="3" align="center">
-                    <Slider 
-                      value={[minDeals]} 
-                      onValueChange={(value) => setMinDeals(value[0])} 
+                <div className="design-form-group">
+                  <label className="design-form-label">Minimum Completed Deals</label>
+                  <div className="design-flex design-gap-3" style={{ alignItems: 'center' }}>
+                    <input 
+                      type="range" 
+                      value={minDeals} 
+                      onChange={(e) => setMinDeals(parseInt(e.target.value))} 
                       min={0} 
                       max={50} 
                       step={5}
                       style={{ flex: 1 }}
+                      className="design-slider"
                     />
-                    <Text size="2">{minDeals}</Text>
-                  </Flex>
-                </Flex>
+                    <span style={{ fontSize: '14px' }}>{minDeals}</span>
+                  </div>
+                </div>
                 
-                <Flex direction="column" gap="1">
-                  <Text size="2" weight="bold">Minimum Transaction Volume</Text>
-                  <Flex gap="3" align="center">
-                    <Slider 
-                      value={[minVolume]} 
-                      onValueChange={(value) => setMinVolume(value[0])} 
+                <div className="design-form-group">
+                  <label className="design-form-label">Minimum Transaction Volume</label>
+                  <div className="design-flex design-gap-3" style={{ alignItems: 'center' }}>
+                    <input 
+                      type="range" 
+                      value={minVolume} 
+                      onChange={(e) => setMinVolume(parseInt(e.target.value))} 
                       min={0} 
                       max={30000} 
                       step={1000}
                       style={{ flex: 1 }}
+                      className="design-slider"
                     />
-                    <Text size="2">${minVolume}</Text>
-                  </Flex>
-                </Flex>
+                    <span style={{ fontSize: '14px' }}>${minVolume}</span>
+                  </div>
+                </div>
                 
-                <Flex justify="end">
-                  <Button variant="soft" onClick={() => {
-                    setMinRating(0);
-                    setMinDeals(0);
-                    setMinVolume(0);
-                    setShowBuyOnly(false);
-                    setShowSellOnly(false);
-                    setSearchQuery('');
-                  }}>
+                <div className="design-flex design-flex-end">
+                  <button 
+                    className="design-button design-button-secondary"
+                    onClick={() => {
+                      setMinRating(0);
+                      setMinDeals(0);
+                      setMinVolume(0);
+                      setShowBuyOnly(false);
+                      setShowSellOnly(false);
+                      setSearchQuery('');
+                    }}
+                  >
                     Reset Filters
-                  </Button>
-                </Flex>
-              </Flex>
-            </Card>
+                  </button>
+                </div>
+              </div>
+            </div>
           )}
-        </Flex>
-      </Card>
+        </div>
+      </div>
       
       {/* Results count */}
-      <Text>Results: {filteredAds.length} advertisements found</Text>
+      <p style={{ color: 'var(--gray-11)', fontSize: '16px' }}>
+        Results: {filteredAds.length} advertisements found
+      </p>
       
       {/* Advertisement grid */}
       {isLoading ? (
-        <Text>Loading advertisements...</Text>
+        <div className="design-grid design-grid-responsive">
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="design-card">
+              <div className="design-flex design-flex-col design-gap-3">
+                <div className="design-flex design-flex-between" style={{ alignItems: 'flex-start' }}>
+                  <div className="design-skeleton" style={{ width: '60%', height: '24px' }}></div>
+                  <div className="design-flex design-gap-2">
+                    <div className="design-skeleton" style={{ width: '60px', height: '20px', borderRadius: 'var(--radius-sm)' }}></div>
+                  </div>
+                </div>
+                <div className="design-skeleton" style={{ width: '100%', height: '16px' }}></div>
+                <div className="design-skeleton" style={{ width: '90%', height: '16px' }}></div>
+                <div className="design-flex design-gap-4" style={{ alignItems: 'center' }}>
+                  <div className="design-skeleton" style={{ width: '80px', height: '20px' }}></div>
+                  <div className="design-skeleton" style={{ width: '100px', height: '20px' }}></div>
+                </div>
+                <div className="design-skeleton" style={{ width: '100%', height: '36px', marginTop: 'var(--space-2)' }}></div>
+              </div>
+            </div>
+          ))}
+        </div>
       ) : error ? (
-        <Text color="red">{error}</Text>
+        <div className="design-empty-state">
+          <div className="design-empty-state-icon">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="8" x2="12" y2="12"/>
+              <line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+          </div>
+          <h3 className="design-heading-3" style={{ marginBottom: 'var(--space-2)' }}>
+            Error Loading Advertisements
+          </h3>
+          <p style={{ color: 'var(--gray-9)', fontSize: '14px' }}>{error}</p>
+        </div>
       ) : filteredAds.length === 0 ? (
-        <Text>No advertisements found matching your filters.</Text>
+        <div className="design-empty-state">
+          <div className="design-empty-state-icon">
+            <Search size={48} />
+          </div>
+          <h3 className="design-heading-3" style={{ marginBottom: 'var(--space-2)' }}>
+            No Advertisements Found
+          </h3>
+          <p style={{ color: 'var(--gray-9)', fontSize: '14px' }}>
+            No advertisements found matching your filters. Try adjusting your search criteria.
+          </p>
+        </div>
       ) : (
-        <Grid columns={{ initial: '1', sm: '2', md: '2', lg: '3' }} gap="4">
+        <div className="design-grid design-grid-responsive">
           {filteredAds.map((ad) => {
             const reputation = mockReputations[ad.creator];
             const isBuy = ad.title.toLowerCase().includes('buy');
             const isOwn = isOwnAdvertisement(ad);
             
             return (
-              <Card key={ad.id}>
-                <Flex direction="column" gap="3">
-                  <Flex justify="between" align="start">
-                    <Heading size="3">{ad.title}</Heading>
-                    <Flex gap="2" align="center">
+              <div key={ad.id} className="design-card design-card-interactive">
+                <div className="design-flex design-flex-col design-gap-4">
+                  <div className="design-flex design-flex-between" style={{ alignItems: 'flex-start' }}>
+                    <h3 className="design-heading-3" style={{ flex: 1 }}>{ad.title}</h3>
+                    <div className="design-flex design-gap-2" style={{ alignItems: 'center' }}>
                       {isOwn && (
-                        <Badge color="gray">Your Advertisement</Badge>
+                        <span className="design-badge design-badge-info">Your Ad</span>
                       )}
-                      <Badge color={isBuy ? 'green' : 'blue'}>
+                      <span className={`design-badge ${isBuy ? 'design-badge-success' : 'design-badge-info'}`}>
                         {isBuy ? 'Buy' : 'Sell'}
-                      </Badge>
-                    </Flex>
-                  </Flex>
+                      </span>
+                    </div>
+                  </div>
                   
-                  <Text size="2" style={{ 
+                  <p style={{ 
+                    fontSize: '14px',
+                    color: 'var(--gray-11)',
                     overflow: 'hidden', 
                     textOverflow: 'ellipsis', 
                     display: '-webkit-box', 
                     WebkitLineClamp: 2, 
                     WebkitBoxOrient: 'vertical',
-                    minHeight: '40px'
+                    minHeight: '40px',
+                    lineHeight: 1.4,
+                    margin: 0
                   }}>
                     {ad.description}
-                  </Text>
+                  </p>
                   
-                  <Flex gap="3" align="center">
-                    <Flex gap="1" align="center">
+                  <div className="design-flex design-gap-4" style={{ alignItems: 'center' }}>
+                    <div className="design-flex design-gap-1" style={{ alignItems: 'center' }}>
                       <DollarSign size={16} />
-                      <Text weight="bold">{formatCurrencyApi(ad.amount)}</Text>
-                    </Flex>
+                      <span style={{ fontWeight: 'bold' }}>{formatCurrencyApi(ad.amount)}</span>
+                    </div>
                     
-                    <Flex gap="1" align="center">
+                    <div className="design-flex design-gap-1" style={{ alignItems: 'center' }}>
                       <Clock size={16} />
-                      <Text size="2">{new Date(ad.createdAt).toLocaleDateString()}</Text>
-                    </Flex>
-                  </Flex>
+                      <span style={{ fontSize: '14px' }}>{new Date(ad.createdAt).toLocaleDateString()}</span>
+                    </div>
+                  </div>
                   
                   {reputation && (
-                    <Flex direction="column" gap="1">
-                      <Flex gap="2" align="center">
-                        <Text size="2">Seller:</Text>
+                    <div className="design-flex design-flex-col design-gap-2">
+                      <div className="design-flex design-gap-2" style={{ alignItems: 'center' }}>
+                        <span style={{ fontSize: '14px' }}>Seller:</span>
                         {renderStars(reputation.rating)}
-                      </Flex>
+                      </div>
                       
-                      <Flex gap="3">
-                        <Flex gap="1" align="center">
+                      <div className="design-flex design-gap-4">
+                        <div className="design-flex design-gap-1" style={{ alignItems: 'center' }}>
                           <Users size={14} />
-                          <Text size="1">{reputation.totalDeals} deals</Text>
-                        </Flex>
+                          <span style={{ fontSize: '12px' }}>{reputation.totalDeals} deals</span>
+                        </div>
                         
-                        <Flex gap="1" align="center">
+                        <div className="design-flex design-gap-1" style={{ alignItems: 'center' }}>
                           <DollarSign size={14} />
-                          <Text size="1">${reputation.totalVolume}</Text>
-                        </Flex>
-                      </Flex>
-                    </Flex>
+                          <span style={{ fontSize: '12px' }}>${reputation.totalVolume}</span>
+                        </div>
+                      </div>
+                    </div>
                   )}
                   
-                  <Flex justify="end">
-                    <Button 
-                      style={{ width: '100%' }} 
-                      disabled={isOwn}
-                      onClick={() => {
-                        if (!isOwn) {
-                          setSelectedAdForJoin(ad);
-                          setShowJoinDialog(true);
-                        }
-                      }}
-                    >
-                      {isOwn ? 'Cannot Join Own Ad' : 'Join Advertisement'}
-                    </Button>
-                  </Flex>
-                </Flex>
-              </Card>
+                  <button 
+                    className={`design-button design-button-primary ${isOwn ? '' : 'design-focus-visible'}`}
+                    style={{ width: '100%' }} 
+                    disabled={isOwn}
+                    onClick={() => {
+                      if (!isOwn) {
+                        setSelectedAdForJoin(ad);
+                        setShowJoinDialog(true);
+                      }
+                    }}
+                  >
+                    {isOwn ? 'Cannot Join Own Ad' : 'Join Advertisement'}
+                  </button>
+                </div>
+              </div>
             );
           })}
-        </Grid>
+        </div>
       )}
 
       {selectedAdForJoin && (
@@ -481,6 +552,6 @@ export function BrowseAdvertisements() {
           }}
         />
       )}
-    </Flex>
+    </div>
   );
 }

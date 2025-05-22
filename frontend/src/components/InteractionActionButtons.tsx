@@ -1,5 +1,4 @@
 import React from 'react';
-import { Button, Flex } from '@radix-ui/themes';
 import { CheckCircle, AlertCircle, ShieldAlert } from 'lucide-react';
 import { Advertisement, Interaction, INTERACTION_JOINED, INTERACTION_SELLER_COMPLETED, INTERACTION_BUYER_APPROVED, INTERACTION_DISPUTED } from '../types';
 
@@ -48,38 +47,39 @@ export function InteractionActionButtons({
   // Show Awaiting Resolution button for disputed interactions (disabled)
   const showAwaitingResolutionButton = interaction.state === INTERACTION_DISPUTED && !isAdmin;
   
+  // Helper to determine icon size based on button size
+  const getIconSize = () => {
+    return size === '1' ? 14 : 16;
+  };
+  
   return (
-    <Flex gap="2">
+    <div className="design-flex design-gap-2">
       {/* Mark as Completed button for sellers */}
       {showMarkCompletedButton && (
-        <Button 
-          color="green" 
-          size={size}
+        <button 
+          className="design-button design-button-primary"
           onClick={() => onMarkCompleted(interactionUserAddress, interaction.id)}
         >
-          <CheckCircle size={size === '1' ? 14 : 16} />
+          <CheckCircle size={getIconSize()} />
           Mark Completed
-        </Button>
+        </button>
       )}
       
       {/* Release Payment button for buyers */}
       {showReleasePaymentButton && (
-        <Button 
-          color="green" 
-          size={size}
+        <button 
+          className="design-button design-button-primary"
           onClick={() => onReleasePayment(interaction.id)}
         >
-          <CheckCircle size={size === '1' ? 14 : 16} />
+          <CheckCircle size={getIconSize()} />
           Release Payment
-        </Button>
+        </button>
       )}
       
       {/* Dispute button for sellers */}
       {showSellerDisputeButton && (
-        <Button 
-          color="red" 
-          variant="soft"
-          size={size}
+        <button 
+          className="design-button design-button-secondary"
           onClick={() => {
             try {
               console.log('InteractionActionButtons: Calling onDispute (seller context)', { interactionUserAddress, interactionId: interaction.id });
@@ -95,17 +95,15 @@ export function InteractionActionButtons({
           }}
           disabled={isDisputing}
         >
-          <AlertCircle size={size === '1' ? 14 : 16} />
+          <AlertCircle size={getIconSize()} />
           {isDisputing ? 'Disputing...' : 'Dispute'}
-        </Button>
+        </button>
       )}
       
       {/* Dispute button for both buyer and seller in SELLER_COMPLETED state */}
       {showDisputeButton && (
-        <Button 
-          color="red" 
-          variant="soft"
-          size={size}
+        <button 
+          className="design-button design-button-secondary"
           onClick={() => {
             try {
               console.log('InteractionActionButtons: Calling onDispute (general context)', { interactionUserAddress, interactionId: interaction.id });
@@ -121,34 +119,31 @@ export function InteractionActionButtons({
           }}
           disabled={isDisputing}
         >
-          <AlertCircle size={size === '1' ? 14 : 16} />
+          <AlertCircle size={getIconSize()} />
           {isDisputing ? 'Disputing...' : 'Dispute'}
-        </Button>
+        </button>
       )}
       
       {/* Resolve Dispute button for admins */}
       {showResolveDisputeButton && (
-        <Button 
-          color="blue"
-          size={size}
+        <button 
+          className="design-button design-button-primary"
         >
-          <ShieldAlert size={size === '1' ? 14 : 16} />
+          <ShieldAlert size={getIconSize()} />
           Resolve Dispute
-        </Button>
+        </button>
       )}
       
       {/* Awaiting Resolution button (disabled) */}
       {showAwaitingResolutionButton && (
-        <Button 
-          color="red" 
-          variant="soft"
-          size={size}
+        <button 
+          className="design-button design-button-secondary"
           disabled
         >
-          <ShieldAlert size={size === '1' ? 14 : 16} />
+          <ShieldAlert size={getIconSize()} />
           Awaiting Resolution
-        </Button>
+        </button>
       )}
-    </Flex>
+    </div>
   );
 }

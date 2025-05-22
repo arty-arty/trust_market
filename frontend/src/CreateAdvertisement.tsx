@@ -103,91 +103,76 @@ export function CreateAdvertisement() {
   };
 
   return (
-    <Card>
-      <Flex direction="column" gap="4">
-        <Heading size="5">Create Advertisement</Heading>
-        
-        <Flex direction="column" gap="2">
-          <Text size="2" weight="bold">Advertisement Type</Text>
-          <Select.Root value={type} onValueChange={(value) => setType(value as AdvertisementType)}>
-            <Select.Trigger />
-            <Select.Content>
-              <Select.Item value="sell">Sell</Select.Item>
-              {/* <Select.Item value="buy">Buy</Select.Item> */}
-            </Select.Content>
-          </Select.Root>
-        </Flex>
-        
-        <Flex direction="column" gap="2">
-          <Text size="2" weight="bold">Title</Text>
-          <input 
-            placeholder={`${type === 'sell' ? 'Sell' : 'Buy'} OpenAI credits for SUI`}            
-            // placeholder={`${type === 'sell' ? 'Sell' : 'Buy'} Sell OpenAI credits for SUI`}
-            value={title}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTitle(e.target.value)}
-            style={{ 
-              width: '100%', 
-              padding: '8px', 
-              borderRadius: '4px', 
-              border: '1px solid var(--gray-5)' 
-            }}
-          />
-        </Flex>
-        
-        <Flex direction="column" gap="2">
-          <Text size="2" weight="bold">Description</Text>
-          <textarea 
-            placeholder="Describe your offer, payment methods, etc."
-            value={description}
-            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setDescription(e.target.value)}
-            style={{ 
-              width: '100%', 
-              padding: '8px', 
-              borderRadius: '4px', 
-              border: '1px solid var(--gray-5)',
-              minHeight: '100px',
-              resize: 'vertical'
-            }}
-          />
-        </Flex>
-        
-        <Flex direction="column" gap="2">
-          <Text size="2" weight="bold">Amount (in SUI)</Text>
-          <input 
-            placeholder="100"
-            value={amount}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAmount(e.target.value)}
-            type="number"
-            style={{ 
-              width: '100%', 
-              padding: '8px', 
-              borderRadius: '4px', 
-              border: '1px solid var(--gray-5)' 
-            }}
-          />
-          <Text size="1" color="gray">This is the amount of SUI that will be locked in escrow</Text>
-        </Flex>
-        
-        {error && (
-          <Text color="red" size="2">{error}</Text>
-        )}
-        
-        <Flex gap="3" justify="end">
-          <Button 
-            variant="soft" 
-            onClick={() => navigate('/marketplace')}
-            disabled={isSubmitting}
-          >
-            Cancel
-          </Button>
-          <Button 
-            onClick={createAdvertisement}
-            disabled={isSubmitting}
-          >
-            {isSubmitting ? 'Creating...' : 'Create Advertisement'}
-          </Button>
-        </Flex>
-      </Flex>
-    </Card>
+    <div className="design-flex design-flex-col design-gap-6">
+      <Heading size="6" className="design-heading-2">Create Advertisement</Heading>
+      
+      <Card className="design-card">
+        <div className="design-flex design-flex-col design-gap-6">
+          <div className="design-form-group">
+            <label className="design-form-label">Advertisement Type</label>
+            <Select.Root value={type} onValueChange={(value) => setType(value as AdvertisementType)}>
+              <Select.Trigger className="design-input" />
+              <Select.Content>
+                <Select.Item value="sell">Sell</Select.Item>
+                {/* <Select.Item value="buy">Buy</Select.Item> */}
+              </Select.Content>
+            </Select.Root>
+          </div>
+          
+          <div className="design-form-group">
+            <label className="design-form-label">Title</label>
+            <input 
+              className="design-input"
+              placeholder={`${type === 'sell' ? 'Sell' : 'Buy'} OpenAI credits for SUI`}            
+              value={title}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTitle(e.target.value)}
+            />
+          </div>
+          
+          <div className="design-form-group">
+            <label className="design-form-label">Description</label>
+            <textarea 
+              className="design-input design-textarea"
+              placeholder="Describe your offer, payment methods, etc."
+              value={description}
+              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setDescription(e.target.value)}
+            />
+          </div>
+          
+          <div className="design-form-group">
+            <label className="design-form-label">Amount (in SUI)</label>
+            <input 
+              className="design-input"
+              placeholder="100"
+              value={amount}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAmount(e.target.value)}
+              type="number"
+            />
+            <span className="design-form-hint">This is the amount of SUI that will be locked in escrow</span>
+          </div>
+          
+          {error && (
+            <div className="design-form-error">{error}</div>
+          )}
+          
+          <div className="design-flex design-gap-3 design-flex-end">
+            <button 
+              className="design-button design-button-secondary"
+              onClick={() => navigate('/marketplace')}
+              disabled={isSubmitting}
+            >
+              Cancel
+            </button>
+            <button 
+              className={`design-button design-button-primary ${isSubmitting ? 'design-loading' : ''}`}
+              onClick={createAdvertisement}
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? 'Creating...' : 'Create Advertisement'}
+            </button>
+          </div>
+        </div>
+      </Card>
+    </div>
   );
 }

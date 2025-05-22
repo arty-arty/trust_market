@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import '@mysten/dapp-kit/dist/index.css';
 import '@radix-ui/themes/styles.css';
 import './fileUploadAnimations.css'; // Import the animations CSS
+import './design-system.css'; // Import the design system
 
 import { SuiClientProvider, WalletProvider } from '@mysten/dapp-kit';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';

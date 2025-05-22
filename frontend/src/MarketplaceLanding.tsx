@@ -41,16 +41,14 @@ export function MarketplaceLanding() {
     const isDisabled = role === 'admin' && !isAdmin;
     
     return {
-      padding: '24px',
-      borderRadius: '16px',
       cursor: isDisabled ? 'not-allowed' : 'pointer',
-      border: isSelected ? '2px solid var(--accent-9)' : '1px solid var(--gray-5)',
-      backgroundColor: isSelected ? 'var(--accent-3)' : isDisabled ? 'var(--gray-3)' : 'rgba(79, 70, 229, 0.1)',
       opacity: isDisabled ? 0.6 : 1,
-      transition: 'all 0.2s ease',
       height: '100%',
-      boxShadow: isSelected ? '0 8px 16px rgba(0, 0, 0, 0.1)' : '0 2px 4px rgba(0, 0, 0, 0.05)',
-      transform: isSelected ? 'translateY(-4px)' : 'none'
+      transform: isSelected ? 'translateY(-4px)' : 'none',
+      borderColor: isSelected ? 'var(--accent-9)' : 'var(--gray-5)',
+      borderWidth: isSelected ? '2px' : '1px',
+      backgroundColor: isSelected ? 'var(--accent-3)' : isDisabled ? 'var(--gray-3)' : 'rgba(79, 70, 229, 0.1)',
+      boxShadow: isSelected ? 'var(--shadow-lg)' : 'var(--shadow-sm)',
     };
   };
 
@@ -61,11 +59,11 @@ export function MarketplaceLanding() {
     return {
       backgroundColor: isSelected ? 'var(--accent-9)' : 'var(--gray-5)',
       color: isSelected ? 'white' : 'var(--gray-11)',
-      padding: '16px',
+      padding: 'var(--space-4)',
       borderRadius: '50%',
-      marginBottom: '16px',
-      boxShadow: isSelected ? '0 4px 8px rgba(0, 0, 0, 0.15)' : 'none',
-      transition: 'all 0.2s ease'
+      marginBottom: 'var(--space-4)',
+      boxShadow: isSelected ? 'var(--shadow-md)' : 'none',
+      transition: 'all var(--transition-normal)'
     };
   };
 
@@ -80,15 +78,16 @@ export function MarketplaceLanding() {
   };
 
   return (
-    <Flex direction="column" gap="4">
-      <Box style={{ 
+    <div className="design-flex design-flex-col design-gap-6">
+      {/* Hero Section */}
+      <div className="design-card" style={{ 
         textAlign: 'center', 
-        padding: '32px 0', 
+        padding: 'var(--space-8)', 
         background: 'linear-gradient(135deg, rgba(79, 70, 229, 0.1), rgba(124, 58, 237, 0.1))',
-        borderRadius: '12px',
-        marginBottom: '16px'
+        borderRadius: 'var(--radius-lg)',
+        marginBottom: 'var(--space-4)'
       }}>
-        <Flex align="center" justify="center" gap="3" style={{ marginBottom: '8px' }}>
+        <div className="design-flex design-flex-center design-gap-3" style={{ marginBottom: 'var(--space-2)' }}>
           <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
             <g clipPath="url(#clip0_2051_2)">
               <path d="M34.6766 8.23425C32.1621 7.56316 29.7057 6.69116 27.3309 5.62665C24.9945 4.61314 22.7391 3.42237 20.5844 2.06477L19.9741 1.6875L19.3749 2.07587C17.2202 3.43347 14.9648 4.62423 12.6284 5.63774C10.2497 6.69903 7.78955 7.56733 5.27167 8.23425L4.43945 8.44508V17.6993C4.43945 32.5571 19.4526 38.1163 19.5968 38.1718L19.9741 38.3049L20.3514 38.1718C20.5067 38.1718 35.5088 32.5682 35.5088 17.6993V8.44508L34.6766 8.23425ZM33.2895 17.6993C33.2895 29.9051 22.1933 35.0204 19.9741 35.9303C17.7549 35.0204 6.65869 29.894 6.65869 17.6993V10.165C8.9994 9.49207 11.2907 8.65786 13.5161 7.66834C15.7417 6.7063 17.8993 5.59412 19.9741 4.33949C22.0489 5.59412 24.2065 6.7063 26.4321 7.66834C28.6575 8.65786 30.9488 9.49207 33.2895 10.165V17.6993Z" fill="#3E63DD"/>
@@ -100,273 +99,300 @@ export function MarketplaceLanding() {
               </clipPath>
             </defs>
           </svg>
-          <Text size="8" weight="bold">Trust Market Place</Text>
-        </Flex>
-        <Text size="3" color="gray">
+          <h1 className="design-heading-1">Trust Market Place</h1>
+        </div>
+        <Text size="4" style={{ color: 'var(--gray-11)' }}>
           Secure platform with encrypted chat and escrow protection
         </Text>
-      </Box>
+      </div>
 
       {/* Role Selection */}
-      <Card style={{ 
-        padding: '24px',
-        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
+      <Card className="design-card" style={{ 
+        padding: 'var(--space-6)',
+        boxShadow: 'var(--shadow-md)',
         border: '1px solid var(--accent-6)',
       }}>
-        <Flex direction="column" gap="3">
-          <Text size="5" weight="bold" style={{ textAlign: 'center' }}>Select Your Role</Text>
-          <Text size="2" color="gray" style={{ textAlign: 'center', marginBottom: '12px' }}>Choose how you want to use the marketplace today</Text>
+        <div className="design-flex design-flex-col design-gap-4">
+          <h2 className="design-heading-2" style={{ textAlign: 'center' }}>Select Your Role</h2>
+          <Text size="3" style={{ textAlign: 'center', marginBottom: 'var(--space-3)', color: 'var(--gray-11)' }}>
+            Choose how you want to use the marketplace today
+          </Text>
           
-          <Grid columns="3" gap="4">
+          <div className="design-grid design-grid-3">
             {/* Client Role (formerly Buyer) */}
-            <Box onClick={() => handleRoleSelect('buyer')} style={getRoleCardStyle('buyer')}>
-              <Flex direction="column" align="center" gap="2">
-                <Box style={{
+            <div 
+              className="design-card design-card-interactive"
+              onClick={() => handleRoleSelect('buyer')} 
+              style={getRoleCardStyle('buyer')}
+            >
+              <div className="design-flex design-flex-col design-flex-center design-gap-3">
+                <div style={{
                   ...getRoleIconStyle('buyer'),
                   background: selectedRole === 'buyer' ? 'linear-gradient(135deg, #4F46E5, #7C3AED)' : 'var(--gray-5)',
-                  padding: '16px',
                 }}>
                   <ShoppingBag size={28} />
-                </Box>
-                <Text size="4" weight="bold">Client</Text>
-                <Text size="2" align="center">Find freelancers and hire for gigs</Text>
-              </Flex>
-            </Box>
+                </div>
+                <h3 className="design-heading-3">Client</h3>
+                <Text size="2" style={{ textAlign: 'center' }}>Find freelancers and hire for gigs</Text>
+              </div>
+            </div>
             
             {/* Freelancer Role (formerly Seller) */}
-            <Box onClick={() => handleRoleSelect('seller')} style={getRoleCardStyle('seller')}>
-              <Flex direction="column" align="center" gap="2">
-                <Box style={{
+            <div 
+              className="design-card design-card-interactive"
+              onClick={() => handleRoleSelect('seller')} 
+              style={getRoleCardStyle('seller')}
+            >
+              <div className="design-flex design-flex-col design-flex-center design-gap-3">
+                <div style={{
                   ...getRoleIconStyle('seller'),
                   background: selectedRole === 'seller' ? 'linear-gradient(135deg, #10B981, #059669)' : 'var(--gray-5)',
-                  padding: '16px',
                 }}>
                   <Store size={28} />
-                </Box>
-                <Text size="4" weight="bold">Freelancer</Text>
-                <Text size="2" align="center">Offer your services and complete gigs</Text>
-              </Flex>
-            </Box>
+                </div>
+                <h3 className="design-heading-3">Freelancer</h3>
+                <Text size="2" style={{ textAlign: 'center' }}>Offer your services and complete gigs</Text>
+              </div>
+            </div>
             
             {/* Admin Role */}
-            <Box onClick={() => handleRoleSelect('admin')} style={getRoleCardStyle('admin')}>
-              <Flex direction="column" align="center" gap="2">
-                <Box style={{
+            <div 
+              className="design-card design-card-interactive"
+              onClick={() => handleRoleSelect('admin')} 
+              style={getRoleCardStyle('admin')}
+            >
+              <div className="design-flex design-flex-col design-flex-center design-gap-3">
+                <div style={{
                   ...getRoleIconStyle('admin'),
                   background: selectedRole === 'admin' ? 'linear-gradient(135deg, #F59E0B, #D97706)' : 'var(--gray-5)',
-                  padding: '16px',
                 }}>
                   <ShieldCheck size={28} />
-                </Box>
-                <Text size="4" weight="bold">Admin</Text>
-                <Text size="2" align="center">
+                </div>
+                <h3 className="design-heading-3">Admin</h3>
+                <Text size="2" style={{ textAlign: 'center' }}>
                   {isAdmin ? 'Resolve disputes and manage users' : 'Admin access required'}
                 </Text>
                 {!isAdmin && (
-                  <Badge color="gray" size="1">Restricted Access</Badge>
+                  <span className="design-badge design-badge-warning">Restricted Access</span>
                 )}
-              </Flex>
-            </Box>
-          </Grid>
-        </Flex>
+              </div>
+            </div>
+          </div>
+        </div>
       </Card>
 
       {/* Role-specific content */}
       {selectedRole === 'buyer' && (
         <>
-          <Grid columns="2" gap="4">
-            <Card>
-              <Flex direction="column" gap="3" style={{ height: '100%' }}>
-                <Flex align="center" gap="2">
+          <div className="design-grid design-grid-2">
+            <Card className="design-card">
+              <div className="design-flex design-flex-col design-gap-4" style={{ height: '100%' }}>
+                <div className="design-flex design-gap-2" style={{ alignItems: 'center' }}>
                   <Search size={20} />
-                  <Text size="5" weight="bold">Browse Advertisements</Text>
-                </Flex>
+                  <h3 className="design-heading-3">Browse Advertisements</h3>
+                </div>
                 <Text>
                   Find skilled freelancers offering their services.
                   Filter by rating, price, and expertise to find your perfect match.
                 </Text>
-                <Box style={{ marginTop: 'auto' }}>
+                <div style={{ marginTop: 'auto' }}>
                   <Link to="/marketplace/browse">
-                    <Button size="3" variant="solid">Browse Listings</Button>
+                    <button className="design-button design-button-primary" style={{ width: '100%' }}>
+                      Browse Listings
+                    </button>
                   </Link>
-                </Box>
-              </Flex>
+                </div>
+              </div>
             </Card>
 
-            <Card>
-              <Flex direction="column" gap="3" style={{ height: '100%' }}>
-                <Flex align="center" gap="2">
+            <Card className="design-card">
+              <div className="design-flex design-flex-col design-gap-4" style={{ height: '100%' }}>
+                <div className="design-flex design-gap-2" style={{ alignItems: 'center' }}>
                   <MessageCircle size={20} />
-                  <Text size="5" weight="bold">My Transactions</Text>
-                </Flex>
+                  <h3 className="design-heading-3">My Transactions</h3>
+                </div>
                 <Text>
                   View your active and completed gigs.
                   Chat with freelancers and manage your projects.
                 </Text>
-                <Box style={{ marginTop: 'auto' }}>
+                <div style={{ marginTop: 'auto' }}>
                   <Link to="/marketplace/my-deals">
-                    <Button size="3" variant="solid">View Transactions</Button>
+                    <button className="design-button design-button-primary" style={{ width: '100%' }}>
+                      View Transactions
+                    </button>
                   </Link>
-                </Box>
-              </Flex>
+                </div>
+              </div>
             </Card>
-          </Grid>
+          </div>
 
-          <Grid columns="2" gap="4">
-            <Card>
-              <Flex direction="column" gap="3" style={{ height: '100%' }}>
-                <Flex align="center" gap="2">
+          <div className="design-grid design-grid-2">
+            <Card className="design-card">
+              <div className="design-flex design-flex-col design-gap-4" style={{ height: '100%' }}>
+                <div className="design-flex design-gap-2" style={{ alignItems: 'center' }}>
                   <User size={20} />
-                  <Text size="5" weight="bold">My Profile</Text>
-                </Flex>
-                  <Text>
-                    View your reputation, project history, and reviews.
-                    A strong profile helps build trust with potential freelancers.
-                  </Text>
-                <Box>
+                  <h3 className="design-heading-3">My Profile</h3>
+                </div>
+                <Text>
+                  View your reputation, project history, and reviews.
+                  A strong profile helps build trust with potential freelancers.
+                </Text>
+                <div>
                   <Link to={`/marketplace/profile/${currentAccount?.address}`}>
-                    <Button size="3" variant="soft">View Profile</Button>
+                    <button className="design-button design-button-secondary" style={{ width: '100%' }}>
+                      View Profile
+                    </button>
                   </Link>
-                </Box>
-              </Flex>
+                </div>
+              </div>
             </Card>
-            
-          </Grid>
+          </div>
         </>
       )}
 
       {selectedRole === 'seller' && (
         <>
-          <Grid columns="2" gap="4">
-            <Card>
-              <Flex direction="column" gap="3" style={{ height: '100%' }}>
-                <Flex align="center" gap="2">
+          <div className="design-grid design-grid-2">
+            <Card className="design-card">
+              <div className="design-flex design-flex-col design-gap-4" style={{ height: '100%' }}>
+                <div className="design-flex design-gap-2" style={{ alignItems: 'center' }}>
                   <DollarSign size={20} />
-                  <Text size="5" weight="bold">Create Advertisement</Text>
-                </Flex>
+                  <h3 className="design-heading-3">Create Advertisement</h3>
+                </div>
                 <Text>
                   Create a new gig listing to offer your services.
                   Set your price, describe your skills, and wait for interested clients.
                 </Text>
-                <Box style={{ marginTop: 'auto' }}>
+                <div style={{ marginTop: 'auto' }}>
                   <Link to="/marketplace/create">
-                    <Button size="3" variant="solid">Create Listing</Button>
+                    <button className="design-button design-button-primary" style={{ width: '100%' }}>
+                      Create Listing
+                    </button>
                   </Link>
-                </Box>
-              </Flex>
+                </div>
+              </div>
             </Card>
 
-            <Card>
-              <Flex direction="column" gap="3" style={{ height: '100%' }}>
-                <Flex align="center" gap="2">
+            <Card className="design-card">
+              <div className="design-flex design-flex-col design-gap-4" style={{ height: '100%' }}>
+                <div className="design-flex design-gap-2" style={{ alignItems: 'center' }}>
                   <Settings size={20} />
-                  <Text size="5" weight="bold">Manage Listings</Text>
-                </Flex>
+                  <h3 className="design-heading-3">Manage Listings</h3>
+                </div>
                 <Text>
                   View and manage your active gig listings.
                   Handle client requests and track your completed jobs.
                 </Text>
-                <Box style={{ marginTop: 'auto' }}>
+                <div style={{ marginTop: 'auto' }}>
                   <Link to="/marketplace/my-listings">
-                    <Button size="3" variant="solid">My Listings</Button>
+                    <button className="design-button design-button-primary" style={{ width: '100%' }}>
+                      My Listings
+                    </button>
                   </Link>
-                </Box>
-              </Flex>
+                </div>
+              </div>
             </Card>
-          </Grid>
+          </div>
 
-          <Grid columns="2" gap="4">
-            <Card>
-              <Flex direction="column" gap="3" style={{ height: '100%' }}>
-                <Flex align="center" gap="2">
+          <div className="design-grid design-grid-2">
+            <Card className="design-card">
+              <div className="design-flex design-flex-col design-gap-4" style={{ height: '100%' }}>
+                <div className="design-flex design-gap-2" style={{ alignItems: 'center' }}>
                   <BarChart3 size={20} />
-                  <Text size="5" weight="bold">Performance Dashboard</Text>
-                </Flex>
-                  <Text>
-                    Track your gig performance, client satisfaction, and earnings.
-                    Gain insights to improve your freelancing strategy.
-                  </Text>
-                <Box>
+                  <h3 className="design-heading-3">Performance Dashboard</h3>
+                </div>
+                <Text>
+                  Track your gig performance, client satisfaction, and earnings.
+                  Gain insights to improve your freelancing strategy.
+                </Text>
+                <div>
                   <Link to={`/marketplace/profile/${currentAccount?.address}`}>
-                    <Button size="3" variant="soft">View Dashboard</Button>
+                    <button className="design-button design-button-secondary" style={{ width: '100%' }}>
+                      View Dashboard
+                    </button>
                   </Link>
-                </Box>
-              </Flex>
+                </div>
+              </div>
             </Card>
-            
-          </Grid>
+          </div>
         </>
       )}
 
       {selectedRole === 'admin' && isAdmin && (
         <>
-          <Grid columns="2" gap="4">
-            <Card>
-              <Flex direction="column" gap="3" style={{ height: '100%' }}>
-                <Flex align="center" gap="2">
+          <div className="design-grid design-grid-2">
+            <Card className="design-card">
+              <div className="design-flex design-flex-col design-gap-4" style={{ height: '100%' }}>
+                <div className="design-flex design-gap-2" style={{ alignItems: 'center' }}>
                   <ShieldCheck size={20} />
-                  <Text size="5" weight="bold">Dispute Resolution</Text>
-                </Flex>
+                  <h3 className="design-heading-3">Dispute Resolution</h3>
+                </div>
                 <Text>
                   Review and resolve disputes between clients and freelancers.
                   Ensure fair outcomes for all marketplace participants.
                 </Text>
-                <Box style={{ marginTop: 'auto' }}>
+                <div style={{ marginTop: 'auto' }}>
                   <Link to="/marketplace/admin">
-                    <Button size="3" variant="solid">Manage Disputes</Button>
+                    <button className="design-button design-button-primary" style={{ width: '100%' }}>
+                      Manage Disputes
+                    </button>
                   </Link>
-                </Box>
-              </Flex>
+                </div>
+              </div>
             </Card>
 
-            <Card>
-              <Flex direction="column" gap="3" style={{ height: '100%' }}>
-                <Flex align="center" gap="2">
+            <Card className="design-card">
+              <div className="design-flex design-flex-col design-gap-4" style={{ height: '100%' }}>
+                <div className="design-flex design-gap-2" style={{ alignItems: 'center' }}>
                   <User size={20} />
-                  <Text size="5" weight="bold">User Management</Text>
-                </Flex>
+                  <h3 className="design-heading-3">User Management</h3>
+                </div>
                 <Text>
                   Review user accounts, handle reports, and manage permissions.
                   Maintain a safe and trustworthy marketplace environment.
                 </Text>
-                <Box style={{ marginTop: 'auto' }}>
+                <div style={{ marginTop: 'auto' }}>
                   <Link to="/marketplace/admin">
-                    <Button size="3" variant="solid">Manage Users</Button>
+                    <button className="design-button design-button-primary" style={{ width: '100%' }}>
+                      Manage Users
+                    </button>
                   </Link>
-                </Box>
-              </Flex>
+                </div>
+              </div>
             </Card>
-          </Grid>
+          </div>
 
-          <Grid columns="2" gap="4">
-            <Card>
-              <Flex direction="column" gap="3" style={{ height: '100%' }}>
-                <Flex align="center" gap="2">
+          <div className="design-grid design-grid-2">
+            <Card className="design-card">
+              <div className="design-flex design-flex-col design-gap-4" style={{ height: '100%' }}>
+                <div className="design-flex design-gap-2" style={{ alignItems: 'center' }}>
                   <BarChart3 size={20} />
-                  <Text size="5" weight="bold">Marketplace Analytics</Text>
-                </Flex>
+                  <h3 className="design-heading-3">Marketplace Analytics</h3>
+                </div>
                 <Text>
                   View comprehensive marketplace statistics and trends.
                   Monitor transaction volume, user growth, and platform health.
                 </Text>
-                <Box>
+                <div>
                   <Link to="/marketplace/admin">
-                    <Button size="3" variant="soft">View Analytics</Button>
+                    <button className="design-button design-button-secondary" style={{ width: '100%' }}>
+                      View Analytics
+                    </button>
                   </Link>
-                </Box>
-              </Flex>
+                </div>
+              </div>
             </Card>
-            
-          </Grid>
+          </div>
         </>
       )}
 
-      <Card>
-        <Flex direction="column" gap="2">
-          <Text size="5" weight="bold">How It Works</Text>
-          <Flex direction="column" gap="2">
-            <Flex gap="2" align="center">
-              <Box style={{ 
+      {/* How It Works Section */}
+      <Card className="design-card">
+        <div className="design-flex design-flex-col design-gap-4">
+          <h2 className="design-heading-2">How It Works</h2>
+          <div className="design-flex design-flex-col design-gap-3">
+            <div className="design-flex design-gap-3" style={{ alignItems: 'center' }}>
+              <div style={{ 
                 background: 'linear-gradient(135deg, #4F46E5, #7C3AED)', 
                 color: 'white', 
                 width: '32px', 
@@ -378,11 +404,11 @@ export function MarketplaceLanding() {
                 flexShrink: 0
               }}>
                 <Search size={16} />
-              </Box>
+              </div>
               <Text>Browse gigs or create your own listing as a freelancer</Text>
-            </Flex>
-            <Flex gap="2" align="center">
-              <Box style={{ 
+            </div>
+            <div className="design-flex design-gap-3" style={{ alignItems: 'center' }}>
+              <div style={{ 
                 background: 'linear-gradient(135deg, #4F46E5, #7C3AED)', 
                 color: 'white', 
                 width: '32px', 
@@ -394,11 +420,11 @@ export function MarketplaceLanding() {
                 flexShrink: 0
               }}>
                 <DollarSign size={16} />
-              </Box>
+              </div>
               <Text>When a client hires you, funds are securely locked in escrow</Text>
-            </Flex>
-            <Flex gap="2" align="center">
-              <Box style={{ 
+            </div>
+            <div className="design-flex design-gap-3" style={{ alignItems: 'center' }}>
+              <div style={{ 
                 background: 'linear-gradient(135deg, #4F46E5, #7C3AED)', 
                 color: 'white', 
                 width: '32px', 
@@ -410,11 +436,11 @@ export function MarketplaceLanding() {
                 flexShrink: 0
               }}>
                 <MessageCircle size={16} />
-              </Box>
+              </div>
               <Text>Communicate securely with end-to-end encrypted chat</Text>
-            </Flex>
-            <Flex gap="2" align="center">
-              <Box style={{ 
+            </div>
+            <div className="design-flex design-gap-3" style={{ alignItems: 'center' }}>
+              <div style={{ 
                 background: 'linear-gradient(135deg, #10B981, #059669)', 
                 color: 'white', 
                 width: '32px', 
@@ -426,11 +452,11 @@ export function MarketplaceLanding() {
                 flexShrink: 0
               }}>
                 <CheckCircle size={16} />
-              </Box>
+              </div>
               <Text>Freelancer marks the job as completed when work is done</Text>
-            </Flex>
-            <Flex gap="2" align="center">
-              <Box style={{ 
+            </div>
+            <div className="design-flex design-gap-3" style={{ alignItems: 'center' }}>
+              <div style={{ 
                 background: 'linear-gradient(135deg, #4F46E5, #7C3AED)', 
                 color: 'white', 
                 width: '32px', 
@@ -442,11 +468,11 @@ export function MarketplaceLanding() {
                 flexShrink: 0
               }}>
                 <CheckCircle size={16} />
-              </Box>
+              </div>
               <Text>Client reviews the work and approves payment release</Text>
-            </Flex>
-            <Flex gap="2" align="center">
-              <Box style={{ 
+            </div>
+            <div className="design-flex design-gap-3" style={{ alignItems: 'center' }}>
+              <div style={{ 
                 background: 'linear-gradient(135deg, #F59E0B, #D97706)', 
                 color: 'white', 
                 width: '32px', 
@@ -458,11 +484,11 @@ export function MarketplaceLanding() {
                 flexShrink: 0
               }}>
                 <ShieldCheck size={16} />
-              </Box>
+              </div>
               <Text>If there's a dispute, an admin can help resolve it fairly</Text>
-            </Flex>
-            <Flex gap="2" align="center">
-              <Box style={{ 
+            </div>
+            <div className="design-flex design-gap-3" style={{ alignItems: 'center' }}>
+              <div style={{ 
                 background: 'linear-gradient(135deg, #4F46E5, #7C3AED)', 
                 color: 'white', 
                 width: '32px', 
@@ -474,27 +500,12 @@ export function MarketplaceLanding() {
                 flexShrink: 0
               }}>
                 <User size={16} />
-              </Box>
+              </div>
               <Text>Leave a review to build your reputation in the marketplace</Text>
-            </Flex>
-          </Flex>
-        </Flex>
+            </div>
+          </div>
+        </div>
       </Card>
-{/* 
-      <Card>
-        <Flex direction="column" gap="2">
-          <Text size="5" weight="bold">Debug Mode</Text>
-          <Text>
-            Try the marketplace in debug mode without blockchain interactions.
-            This allows you to explore the UI and functionality without spending real tokens.
-          </Text>
-          <Box>
-            <Link to="/marketplace/debug">
-              <Button size="2" variant="soft">Enter Debug Mode</Button>
-            </Link>
-          </Box>
-        </Flex>
-      </Card> */}
-    </Flex>
+    </div>
   );
 }

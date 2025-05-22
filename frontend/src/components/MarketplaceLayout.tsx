@@ -5,11 +5,11 @@ import { BackButton } from './BackButton';
 
 export function MarketplaceLayout() {
   return (
-    <Flex direction="column" gap="3">
-      <Box>
-        <BackButton />
-      </Box>
-      <Outlet />
-    </Flex>
+    <div className="design-flex design-flex-col design-gap-4">
+      <BackButton />
+      <div className="design-page-enter design-page-enter-active">
+        <Outlet />
+      </div>
+    </div>
   );
 }

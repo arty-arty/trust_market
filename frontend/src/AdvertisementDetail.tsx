@@ -2,13 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { useCurrentAccount, useSignAndExecuteTransaction, useSuiClient } from '@mysten/dapp-kit';
 import { getAllowlistedKeyServers, SealClient } from '@mysten/seal';
 import { Transaction } from '@mysten/sui/transactions';
-import { Button, Card, Flex, Text, Heading, Badge, Separator, Box, Tabs, Dialog } from '@radix-ui/themes';
 import { DisputeConfirmation, ReleasePaymentConfirmation, MarkCompletedConfirmation, JoinAdvertisementConfirmation } from './components/ConfirmationDialogs';
 import { useNetworkVariable } from './networkConfig';
 import { Link, useParams, useNavigate, useLocation } from 'react-router-dom';
 import { DollarSign, Clock, User, MessageCircle, AlertCircle, CheckCircle, ShieldAlert, History, X } from 'lucide-react';
 import { InteractionActionButtons } from './components/InteractionActionButtons';
 import { ChatWrapper } from './components/ChatWrapper';
+import { ScaledModalOverlay } from './components/ScaledPortal';
 import { Advertisement as AdvertisementType, Interaction, UserProfile, INTERACTION_JOINED, INTERACTION_SELLER_COMPLETED, INTERACTION_BUYER_APPROVED, INTERACTION_DISPUTED } from './types';
 import { generateAndEncryptEphemeralKey, storeEphemeralKey } from './utils';
 import { 
@@ -78,6 +78,7 @@ const parseUserProfile = (content: any): UserProfile => {
   
   return userProfile;
 };
+
 // Component to display interaction history
 const InteractionHistory = ({ 
   interactions, 
@@ -91,29 +92,38 @@ const InteractionHistory = ({
   const stateLabels = ['Joined', 'Completed', 'Disputed'];
   
   return (
-    <Box>
-      <Heading size="3">Interaction History</Heading>
-      <Flex direction="column" gap="2" style={{ marginTop: '8px' }}>
+    <div className="design-flex design-flex-col design-gap-4">
+      <h3 className="design-heading-3">Interaction History</h3>
+      <div className="design-flex design-flex-col design-gap-2">
         {interactions.map(interaction => (
-          <Card 
+          <div 
             key={interaction.id} 
+            className={`design-card design-card-interactive ${selectedInteractionId === interaction.id ? 'design-card-selected' : ''}`}
             onClick={() => onSelectInteraction(interaction.id)}
             style={{ 
               cursor: 'pointer',
-              border: selectedInteractionId === interaction.id ? '2px solid var(--blue-9)' : undefined
+              borderColor: selectedInteractionId === interaction.id ? 'var(--accent-9)' : 'var(--gray-5)',
+              borderWidth: selectedInteractionId === interaction.id ? '2px' : '1px',
+              backgroundColor: selectedInteractionId === interaction.id ? 'var(--accent-3)' : undefined
             }}
           >
-            <Flex justify="between" align="center">
-              <Text>Interaction #{interaction.id}</Text>
-              <Badge color={interaction.state === 0 ? 'blue' : interaction.state === 1 ? 'green' : 'red'}>
+            <div className="design-flex design-flex-between" style={{ alignItems: 'center' }}>
+              <span style={{ fontWeight: 500 }}>Interaction #{interaction.id}</span>
+              <span className={`design-badge ${
+                interaction.state === 0 ? 'design-badge-info' : 
+                interaction.state === 1 ? 'design-badge-success' : 
+                'design-badge-error'
+              }`}>
                 {stateLabels[interaction.state]}
-              </Badge>
-            </Flex>
-            <Text size="2">Joined: {new Date(interaction.joinedAt).toLocaleString()}</Text>
-          </Card>
+              </span>
+            </div>
+            <span style={{ fontSize: '14px', color: 'var(--gray-10)' }}>
+              Joined: {new Date(interaction.joinedAt).toLocaleString()}
+            </span>
+          </div>
         ))}
-      </Flex>
-    </Box>
+      </div>
+    </div>
   );
 };
 
@@ -341,7 +351,12 @@ export function AdvertisementDetail() {
   // Get state badge
   const getStateBadge = (state: number) => {
     const stateInfo = getStateInfo(state);
-    return <Badge color={stateInfo.color as any}>{stateInfo.label}</Badge>;
+    const colorClass = stateInfo.color === 'blue' ? 'design-badge-info' : 
+                       stateInfo.color === 'green' ? 'design-badge-success' :
+                       stateInfo.color === 'red' ? 'design-badge-error' :
+                       stateInfo.color === 'yellow' ? 'design-badge-warning' : 'design-badge-info';
+    
+    return <span className={`design-badge ${colorClass}`}>{stateInfo.label}</span>;
   };
   
   // Join advertisement
@@ -657,25 +672,25 @@ export function AdvertisementDetail() {
     // If user is neither creator nor joiner and advertisement is available
     if (!isCreator() && !isJoiner() && advertisement.state === 0) {
       return (
-        <Button 
+        <button 
+          className={`design-button design-button-primary ${isJoining ? 'design-loading' : ''}`}
           onClick={showJoinDialog}
           disabled={isJoining}
         >
           {isJoining ? 'Joining...' : 'Join Advertisement'}
-        </Button>
+        </button>
       );
     }
     
     // If user is the creator and advertisement is available
     if (isCreator() && advertisement.state === 0) {
       return (
-        <Button 
-          variant="soft" 
-          color="red" 
+        <button 
+          className="design-button design-button-secondary"
           onClick={() => alert('Cancel advertisement functionality would be implemented in a real application')}
         >
           Cancel Advertisement
-        </Button>
+        </button>
       );
     }
     
@@ -700,7 +715,7 @@ export function AdvertisementDetail() {
   };
   
   return (
-    <Flex direction="column" gap="4">
+    <div className="design-flex design-flex-col design-gap-6">
       {/* Shared Confirmation Dialogs */}
       <DisputeConfirmation 
         open={showDisputeConfirmation}
@@ -729,232 +744,53 @@ export function AdvertisementDetail() {
         amount={advertisement?.amount || 0}
         isLoading={isJoining}
       />
+      
       {isLoading ? (
-        <Text>Loading advertisement...</Text>
+        <div className="design-empty-state">
+          <div className="design-empty-state-icon">
+            <div className="design-skeleton" style={{ width: '48px', height: '48px', borderRadius: '50%' }}></div>
+          </div>
+          <h3 className="design-heading-3" style={{ marginBottom: 'var(--space-2)' }}>
+            Loading Advertisement
+          </h3>
+          <p style={{ fontSize: '14px', color: 'var(--gray-9)' }}>
+            Fetching advertisement details...
+          </p>
+        </div>
       ) : error ? (
-        <Text color="red">{error}</Text>
+        <div className="design-empty-state">
+          <div className="design-empty-state-icon">
+            <AlertCircle size={48} color="var(--red-9)" />
+          </div>
+          <h3 className="design-heading-3" style={{ marginBottom: 'var(--space-2)' }}>
+            Error Loading Advertisement
+          </h3>
+          <p style={{ fontSize: '14px', color: 'var(--gray-9)' }}>{error}</p>
+        </div>
       ) : advertisement ? (
         <>
-          <Card>
-            <Flex direction="column" gap="3">
-              <Flex justify="between" align="start">
-                <Heading size="5">{advertisement.title}</Heading>
+          <div className="design-card">
+            <div className="design-flex design-flex-col design-gap-4">
+              <div className="design-flex design-flex-between" style={{ alignItems: 'flex-start' }}>
+                <h1 className="design-heading-1">{advertisement.title}</h1>
                 {getStateBadge(advertisement.state)}
-              </Flex>
+              </div>
               
-              <Text>{advertisement.description}</Text>
+              <p style={{ lineHeight: 1.6, fontSize: '16px' }}>{advertisement.description}</p>
               
-              <Flex gap="3" align="center">
-                <Flex gap="1" align="center">
-                  <DollarSign size={16} />
-                  <Text weight="bold">{formatCurrency(advertisement.amount)}</Text>
-                </Flex>
+              <div className="design-flex design-gap-6" style={{ alignItems: 'center', flexWrap: 'wrap' }}>
+                <div className="design-flex design-gap-2" style={{ alignItems: 'center' }}>
+                  <DollarSign size={20} color="var(--green-9)" />
+                  <span style={{ fontWeight: 'bold', fontSize: '18px' }}>{formatCurrency(advertisement.amount)}</span>
+                </div>
                 
-                <Flex gap="1" align="center">
-                  <Clock size={16} />
-                  <Text size="2">{new Date(advertisement.createdAt).toLocaleDateString()}</Text>
-                </Flex>
-              </Flex>
+                <div className="design-flex design-gap-2" style={{ alignItems: 'center' }}>
+                  <Clock size={16} color="var(--gray-9)" />
+                  <span style={{ fontSize: '16px' }}>{new Date(advertisement.createdAt).toLocaleDateString()}</span>
+                </div>
+              </div>
               
-              <Flex gap="1" align="center">
-                <User size={16} />
-                <Text size="2">
-                  Created by: 
-                  <Link to={`/marketplace/profile/${advertisement.creator}`} style={{ marginLeft: '4px' }}>
-                    {formatAddress(advertisement.creator)}
-                  </Link>
-                </Text>
-              </Flex>
-              
-              {advertisement.joinedBy && (
-                <Flex gap="1" align="center">
-                  <User size={16} />
-                  <Text size="2">
-                    Joined by: 
-                    <Link to={`/marketplace/profile/${advertisement.joinedBy}`} style={{ marginLeft: '4px' }}>
-                      {formatAddress(advertisement.joinedBy)}
-                    </Link>
-                  </Text>
-                </Flex>
-              )}
-              
-              <Flex gap="3" justify="end">
-                {renderActionButtons()}
-                
-                {(advertisement.state === 1 || advertisement.state === 3) && (
-                  <Button 
-                    variant={showChat ? 'solid' : 'soft'}
-                    onClick={() => {
-                      // Toggle chat visibility
-                      const newShowChat = !showChat;
-                      setShowChat(newShowChat);
-                      
-                      // If showing chat and no interaction is selected, try to select one
-                      if (newShowChat && selectedInteractionId === undefined) {
-                        // For creator, find the latest interaction from any user
-                        if (isCreator() && fullAdvertisement) {
-                          // Find all interactions across all user profiles
-                          const allInteractions: Interaction[] = [];
-                          
-                          // Collect all interactions from all user profiles
-                          Object.entries(fullAdvertisement.userProfiles).forEach(([address, profile]) => {
-                            if (profile.interactions && profile.interactions.length > 0) {
-                              allInteractions.push(...profile.interactions);
-                            }
-                          });
-                          
-                          // Sort all interactions by join date (newest first)
-                          if (allInteractions.length > 0) {
-                            const sortedInteractions = [...allInteractions].sort((a, b) => b.joinedAt - a.joinedAt);
-                            const newestInteraction = sortedInteractions[0];
-                            
-                            logChatDebug('Creator selected interaction', { 
-                              interactionId: newestInteraction.id,
-                              user: newestInteraction.user,
-                              joinedAt: new Date(newestInteraction.joinedAt).toISOString()
-                            });
-                            
-                            setSelectedInteractionId(newestInteraction.id);
-                          }
-                        }
-                        // For joiner, find their latest interaction
-                        else if (isJoiner() && userProfile && userProfile.interactions.length > 0) {
-                          const joinerLatestInteraction = [...userProfile.interactions].sort((a, b) => b.id - a.id)[0];
-                          logChatDebug('Joiner selected interaction', { 
-                            interactionId: joinerLatestInteraction.id 
-                          });
-                          setSelectedInteractionId(joinerLatestInteraction.id);
-                        }
-                      }
-                    }}
-                  >
-                    <MessageCircle size={16} />
-                    {showChat ? 'Hide Chat' : 'Show Chat'}
-                  </Button>
-                )}
-                
-                <Button 
-                  variant="soft" 
-                  onClick={() => navigate('/marketplace')}
-                >
-                  Back to Marketplace
-                </Button>
-              </Flex>
-            </Flex>
-          </Card>
-          
-          {/* Simple Chat Popup - Appears directly in the page */}
-          {showChat && selectedInteractionId !== undefined && (
-            <div style={{
-              position: 'fixed',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              backgroundColor: 'rgba(0, 0, 0, 0.5)',
-              zIndex: 9998,
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center',
-            }}>
-              <Card style={{
-                width: '80vw',
-                maxWidth: '90vw',
-                maxHeight: '90vh',
-                padding: '20px',
-                position: 'relative',
-                zIndex: 9999,
-              }}>
-                <Flex direction="column" gap="3">
-                  <Flex justify="between" align="center">
-                    <Heading size="4">
-                      Chat with {formatAddress(isCreator() ? 
-                        (userProfile?.interactions.find(i => i.id === selectedInteractionId)?.user || '') : 
-                        advertisement.creator)}
-                    </Heading>
-                    <Button variant="ghost" color="gray" onClick={() => setShowChat(false)}>
-                      <X size={18} />
-                    </Button>
-                  </Flex>
-                  
-                  <Separator />
-                  
-                  {/* Show interaction history if user has multiple interactions */}
-                  {userProfile && userProfile.interactions.length > 1 && (
-                    <Flex direction="column" gap="3">
-                      <InteractionHistory 
-                        interactions={userProfile.interactions}
-                        onSelectInteraction={setSelectedInteractionId}
-                        selectedInteractionId={selectedInteractionId}
-                      />
-                      <Separator size="4" />
-                    </Flex>
-                  )}
-                  
-                  {/* Show action buttons for creating new interaction or continuing current */}
-                  {userProfile && (
-                    <Flex gap="3" justify="end">
-                      {userProfile.interactions.length > 0 && 
-                       getLatestInteraction(fullAdvertisement!, currentAccount!.address)?.state === INTERACTION_BUYER_APPROVED && (
-                        <Button 
-                          onClick={() => {
-                            // Create a new interaction
-                            joinAdvertisement();
-                          }}
-                        >
-                          Create New Interaction
-                        </Button>
-                      )}
-                      
-                      {userProfile.interactions.length > 0 && 
-                       getLatestInteraction(fullAdvertisement!, currentAccount!.address)?.state === INTERACTION_JOINED && (
-                        <Button 
-                          onClick={() => {
-                            // Select the latest interaction
-                            const latestInteraction = [...userProfile.interactions].sort((a, b) => b.id - a.id)[0];
-                            setSelectedInteractionId(latestInteraction.id);
-                          }}
-                        >
-                          Continue Current Interaction
-                        </Button>
-                      )}
-                    </Flex>
-                  )}
-                  
-                  <Box style={{ height: '60vh' }}>
-                    <ChatWrapper 
-                      advertisement={fullAdvertisement || {
-                        id: advertisement.id,
-                        title: advertisement.title,
-                        description: advertisement.description,
-                        amount: advertisement.amount,
-                        creator: advertisement.creator,
-                        createdAt: advertisement.createdAt,
-                        userProfiles: advertisement.joinedBy && advertisement.userInteraction ? {
-                          [advertisement.joinedBy]: {
-                            user: advertisement.joinedBy,
-                            interactions: [advertisement.userInteraction]
-                          }
-                        } : {}
-                      } as AdvertisementType}
-                      userAddress={userAddressFromState || currentAccount?.address || ''}
-                      interactionId={selectedInteractionId}
-                      isCreator={isCreatorFromState !== undefined ? isCreatorFromState : isCreator()}
-                      isAdmin={false}
-                      debugMode={true}
-                      onMarkCompleted={showMarkCompletedDialog}
-                      onDispute={showDisputeDialog}
-                      onReleasePayment={showReleaseDialog}
-                    />
-                  </Box>
-                </Flex>
-              </Card>
-            </div>
-          )}
-        </>
-      ) : (
-        <Text>Advertisement not found.</Text>
-      )}
-    </Flex>
-  );
-}
+              <div className="design-flex design-gap-2" style={{ alignItems: 'center' }}>
+                <User size={16} color="var(--gray-9)" />
+                <span style={{ fontSize: '16px' }}>
+                  Created by:

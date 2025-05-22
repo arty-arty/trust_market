@@ -28,18 +28,19 @@ export function BackButton({ fallbackPath = '/marketplace' }: BackButtonProps) {
   }
   
   return (
-    <Button 
-      variant="ghost" 
+    <button 
+      className="design-button design-button-ghost design-focus-visible"
       onClick={handleBack}
       style={{ 
         display: 'flex', 
         alignItems: 'center', 
-        gap: '4px',
-        padding: '8px 12px',
+        gap: 'var(--space-2)',
+        padding: 'var(--space-2) var(--space-3)',
+        marginBottom: 'var(--space-4)'
       }}
     >
       <ArrowLeft size={16} />
       Back
-    </Button>
+    </button>
   );
 }

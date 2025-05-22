@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useCurrentAccount, useSignAndExecuteTransaction, useSuiClient } from '@mysten/dapp-kit';
 import { Transaction } from '@mysten/sui/transactions';
-import { Button, Card, Flex, Text, Heading, Badge, Tabs, Box, Dialog, Separator } from '@radix-ui/themes';
 import { DisputeConfirmation, ReleasePaymentConfirmation, MarkCompletedConfirmation } from './components/ConfirmationDialogs';
 import { useNetworkVariable } from './networkConfig';
 import { Link, useNavigate } from 'react-router-dom';
@@ -9,6 +8,7 @@ import { Clock, DollarSign, User, MessageCircle, AlertCircle, CheckCircle, Users
 import { Advertisement, Interaction, INTERACTION_JOINED, INTERACTION_SELLER_COMPLETED, INTERACTION_BUYER_APPROVED, INTERACTION_DISPUTED } from './types';
 import { InteractionsList } from './InteractionsList';
 import { ChatWrapper } from './components/ChatWrapper';
+import { ScaledModalOverlay } from './components/ScaledPortal';
 import { 
   fetchAdvertisements, 
   getMyCreatedAdvertisements, 
@@ -24,7 +24,7 @@ import {
 } from './api';
 
 interface MyAdvertisementsProps {
-  routeMode: 'client' | 'seller'; // This prop is now required and set by the router
+  routeMode: 'client' | 'seller';
 }
 
 export function MyAdvertisements({ routeMode }: MyAdvertisementsProps) {
@@ -34,19 +34,16 @@ export function MyAdvertisements({ routeMode }: MyAdvertisementsProps) {
   const suiClient = useSuiClient();
   const currentAccount = useCurrentAccount();
   
-  // State for advertisements - this will hold either created or joined ads based on routeMode
   const [advertisements, setAdvertisements] = useState<DisplayAdvertisement[]>([]);
   const [filteredAds, setFilteredAds] = useState<DisplayAdvertisement[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('all');
   
-  // State for interactions dialog and chat dialog
   const [showInteractions, setShowInteractions] = useState(false);
   const [showChat, setShowChat] = useState(false);
   const [selectedAdvertisement, setSelectedAdvertisement] = useState<Advertisement | null>(null);
   
-  // State for confirmation dialogs
   const [showDisputeConfirmation, setShowDisputeConfirmation] = useState(false);
   const [showReleaseConfirmation, setShowReleaseConfirmation] = useState(false);
   const [showMarkCompletedConfirmation, setShowMarkCompletedConfirmation] = useState(false);
@@ -55,7 +52,6 @@ export function MyAdvertisements({ routeMode }: MyAdvertisementsProps) {
   const [markCompletedData, setMarkCompletedData] = useState<{advertisementId: string, joinedBy: string, interactionId: number} | null>(null);
   const [isDisputing, setIsDisputing] = useState(false);
   
-  // Transaction signing and execution
   const { mutate: signAndExecute } = useSignAndExecuteTransaction({
     execute: async ({ bytes, signature }) =>
       await suiClient.executeTransactionBlock({
@@ -68,7 +64,6 @@ export function MyAdvertisements({ routeMode }: MyAdvertisementsProps) {
       }),
   });
   
-  // Load advertisements
   useEffect(() => {
     const loadAdvertisements = async () => {
       setIsLoading(true);
@@ -79,11 +74,10 @@ export function MyAdvertisements({ routeMode }: MyAdvertisementsProps) {
           const allAdsRaw = await fetchAdvertisements(suiClient, packageId, registryId);
           let relevantAdsRaw: Advertisement[] = [];
 
-          if (routeMode === 'seller') { // Freelancer mode ("My Listings")
+          if (routeMode === 'seller') {
             relevantAdsRaw = getMyCreatedAdvertisements(allAdsRaw, currentAccount.address);
-          } else { // Client mode ("My Deals")
+          } else {
             const joinedAdsRaw = getMyJoinedAdvertisements(allAdsRaw, currentAccount.address);
-            // Ensure client doesn't see ads they created, even if they interacted with them
             relevantAdsRaw = joinedAdsRaw.filter(ad => ad.creator !== currentAccount.address);
           }
           
@@ -105,26 +99,20 @@ export function MyAdvertisements({ routeMode }: MyAdvertisementsProps) {
     loadAdvertisements();
   }, [currentAccount, packageId, registryId, suiClient, routeMode]);
   
-  // Filter advertisements based on active tab
   useEffect(() => {
     let filtered = [...advertisements]; 
     
     if (routeMode === 'seller') {
       switch (activeTab) {
         case 'available':
-          // For sellers, 'available' means their listings with no interactions yet.
-          // ad.state from convertToDisplayAdvertisement for a created ad with no interactions should be 0.
           filtered = filtered.filter(ad => ad.state === 0 && !ad.userInteraction);
           break;
         case 'all':
-          // For sellers, 'all' shows all their created listings. No additional filtering needed here.
           break;
         default:
-          // For seller, if any other tab is somehow selected, show all (or could be an empty list)
-          // This case should ideally not be reached if tabs are correctly hidden.
           break;
       }
-    } else { // client mode
+    } else {
       switch (activeTab) {
         case 'inProgress':
           filtered = filtered.filter(ad => ad.userInteraction?.state === INTERACTION_JOINED);
@@ -139,8 +127,6 @@ export function MyAdvertisements({ routeMode }: MyAdvertisementsProps) {
           filtered = filtered.filter(ad => ad.userInteraction?.state === INTERACTION_DISPUTED);
           break;
         case 'all':
-          // For clients, 'all' shows all their interacted deals. No additional state filtering needed here
-          // as the initial `advertisements` list for clients already contains only their deals.
           break;
         default:
           break;
@@ -150,44 +136,42 @@ export function MyAdvertisements({ routeMode }: MyAdvertisementsProps) {
     setFilteredAds(filtered);
   }, [advertisements, activeTab, routeMode, isLoading]);
   
-  // Get state badge
   const getStateBadge = (state: number, userInteractionState?: number) => {
-    // For state 2 (completed), we need to check the interaction state to determine if it's "Waiting Approval" or "Finished"
     if (state === 2 && userInteractionState === INTERACTION_SELLER_COMPLETED) {
-      return <Badge color="yellow">Waiting Approval</Badge>;
+      return <span className="design-badge design-badge-warning">Waiting Approval</span>;
     } else if (state === 2 && userInteractionState === INTERACTION_BUYER_APPROVED) {
-      return <Badge color="green">Finished</Badge>;
+      return <span className="design-badge design-badge-success">Finished</span>;
     }
     
     const stateInfo = getStateInfo(state);
-    return <Badge color={stateInfo.color as any}>{stateInfo.label}</Badge>;
+    const colorClass = stateInfo.color === 'blue' ? 'design-badge-info' : 
+                       stateInfo.color === 'green' ? 'design-badge-success' :
+                       stateInfo.color === 'red' ? 'design-badge-error' :
+                       stateInfo.color === 'yellow' ? 'design-badge-warning' : 'design-badge-info';
+    
+    return <span className={`design-badge ${colorClass}`}>{stateInfo.label}</span>;
   };
   
-  // Show mark completed confirmation dialog
   const showMarkCompletedDialog = (advertisementId: string, joinedBy: string, interactionId: number) => {
     setMarkCompletedData({ advertisementId, joinedBy, interactionId });
     setShowMarkCompletedConfirmation(true);
   };
   
-  // Show dispute confirmation dialog
   const showDisputeDialog = (advertisementId: string, userAddress: string, interactionId: number) => {
     setDisputeData({ advertisementId, userAddress, interactionId });
     setShowDisputeConfirmation(true);
   };
   
-  // Show release payment confirmation dialog
   const showReleaseDialog = (advertisementId: string, interactionId: number) => {
     setReleaseData({ advertisementId, interactionId });
     setShowReleaseConfirmation(true);
   };
   
-  // Mark advertisement as completed
   const markCompleted = () => {
     if (!markCompletedData) return;
     
     const { advertisementId, joinedBy, interactionId } = markCompletedData;
     setShowMarkCompletedConfirmation(false);
-    // Use the markInteractionCompleted function from api.ts
     const tx = markInteractionCompleted(
       packageId,
       advertisementId,
@@ -202,7 +186,6 @@ export function MyAdvertisements({ routeMode }: MyAdvertisementsProps) {
       {
         onSuccess: async (result) => {
           console.log('Advertisement marked as completed:', result);
-          // Update the advertisement state
           setAdvertisements(prev => 
             prev.map(ad => 
               ad.id === advertisementId 
@@ -219,17 +202,13 @@ export function MyAdvertisements({ routeMode }: MyAdvertisementsProps) {
     );
   };
   
-  // Cancel advertisement (not implemented in the contract yet)
   const cancelAdvertisement = (advertisementId: string) => {
-    // This would be implemented in a real application
     alert('Cancel advertisement functionality would be implemented in a real application');
   };
   
-  // View interactions for an advertisement
   const viewInteractions = async (advertisementId: string) => {
     try {
       if (suiClient) {
-        // Fetch the full advertisement data
         const adData = await fetchAdvertisements(suiClient, packageId, registryId);
         const ad = adData.find(a => a.id === advertisementId);
         
@@ -246,20 +225,16 @@ export function MyAdvertisements({ routeMode }: MyAdvertisementsProps) {
     }
   };
   
-  // Handle mark completed from interactions list
   const handleMarkCompletedFromList = (userAddress: string, interactionId: number) => {
     if (!selectedAdvertisement) return;
-    // This function is called from InteractionsList, selectedAdvertisement is the one whose interactions are shown
     showMarkCompletedDialog(selectedAdvertisement.id, userAddress, interactionId);
   };
   
-  // Handle release payment (buyer approves completion)
   const handleReleasePayment = () => {
     if (!releaseData) return;
     
     const { advertisementId, interactionId } = releaseData;
     setShowReleaseConfirmation(false);
-    // Use the releasePayment function from api.ts
     const tx = releasePayment(
       packageId,
       advertisementId,
@@ -273,7 +248,6 @@ export function MyAdvertisements({ routeMode }: MyAdvertisementsProps) {
       {
         onSuccess: async (result) => {
           console.log('Payment released:', result);
-          // Update the advertisement state
           setAdvertisements(prev => 
             prev.map(ad => 
               ad.id === advertisementId 
@@ -290,14 +264,12 @@ export function MyAdvertisements({ routeMode }: MyAdvertisementsProps) {
     );
   };
   
-  // Handle dispute (either buyer or seller can dispute)
   const handleDispute = () => {
     if (!disputeData) return;
     
     const { advertisementId, userAddress, interactionId } = disputeData;
     setShowDisputeConfirmation(false);
     setIsDisputing(true);
-    // Use the disputeInteraction function from api.ts
     const tx = disputeInteraction(
       packageId,
       advertisementId,
@@ -312,7 +284,6 @@ export function MyAdvertisements({ routeMode }: MyAdvertisementsProps) {
       {
         onSuccess: async (result) => {
           console.log('Advertisement disputed:', result);
-          // Update the advertisement state
           setAdvertisements(prev => 
             prev.map(ad => 
               ad.id === advertisementId 
@@ -330,185 +301,254 @@ export function MyAdvertisements({ routeMode }: MyAdvertisementsProps) {
   };
   
   return (
-    <Flex direction="column" gap="4">
-      <Flex justify="between" align="center">
-        <Heading size="5">
+    <div className="design-flex design-flex-col design-gap-6">
+      <div className="design-flex design-flex-between" style={{ alignItems: 'center' }}>
+        <h2 className="design-heading-2">
           {routeMode === 'client' ? 'My Deals' : 'My Listings'}
-        </Heading>
+        </h2>
         {routeMode === 'seller' && (
           <Link to="/marketplace/create">
-            <Button>Create New Listing</Button>
+            <button className="design-button design-button-primary">Create New Listing</button>
           </Link>
         )}
-         {/* This button is part of the empty state now, so removed from here */}
-      </Flex>
+      </div>
       
-      <Tabs.Root value={activeTab} onValueChange={setActiveTab}>
-        <Tabs.List>
-          <Tabs.Trigger value="all">All</Tabs.Trigger>
+      <div className="design-card" style={{ padding: 'var(--space-4)' }}>
+        <div className="design-flex design-gap-4" style={{ borderBottom: '1px solid var(--gray-5)', paddingBottom: 'var(--space-2)' }}>
+          <button 
+            className={`design-button ${activeTab === 'all' ? 'design-button-primary' : 'design-button-ghost'}`}
+            onClick={() => setActiveTab('all')}
+          >
+            All
+          </button>
+          
           {routeMode === 'seller' ? (
-            <Tabs.Trigger value="available">Available</Tabs.Trigger>
-            // Other tabs like "In Progress", "Disputed" for seller's listings 
-            // will show ads that have interactions. User clicks "View Interactions" for details.
-          ) : ( // Client mode tabs
+            <button 
+              className={`design-button ${activeTab === 'available' ? 'design-button-primary' : 'design-button-ghost'}`}
+              onClick={() => setActiveTab('available')}
+            >
+              Available
+            </button>
+          ) : (
             <>
-              <Tabs.Trigger value="inProgress">In Progress</Tabs.Trigger>
-              <Tabs.Trigger value="waitingApproval">Waiting Approval</Tabs.Trigger>
-              <Tabs.Trigger value="finished">Finished</Tabs.Trigger>
-              <Tabs.Trigger value="disputed">Disputed</Tabs.Trigger>
+              <button 
+                className={`design-button ${activeTab === 'inProgress' ? 'design-button-primary' : 'design-button-ghost'}`}
+                onClick={() => setActiveTab('inProgress')}
+              >
+                In Progress
+              </button>
+              <button 
+                className={`design-button ${activeTab === 'waitingApproval' ? 'design-button-primary' : 'design-button-ghost'}`}
+                onClick={() => setActiveTab('waitingApproval')}
+              >
+                Waiting Approval
+              </button>
+              <button 
+                className={`design-button ${activeTab === 'finished' ? 'design-button-primary' : 'design-button-ghost'}`}
+                onClick={() => setActiveTab('finished')}
+              >
+                Finished
+              </button>
+              <button 
+                className={`design-button ${activeTab === 'disputed' ? 'design-button-primary' : 'design-button-ghost'}`}
+                onClick={() => setActiveTab('disputed')}
+              >
+                Disputed
+              </button>
             </>
           )}
-        </Tabs.List>
-      </Tabs.Root>
+        </div>
+      </div>
       
       {isLoading ? (
-        <Text>Loading {routeMode === 'client' ? 'your deals' : 'your listings'}...</Text>
+        <div className="design-grid design-grid-responsive">
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="design-card">
+              <div className="design-flex design-flex-col design-gap-3">
+                <div className="design-flex design-flex-between" style={{ alignItems: 'flex-start' }}>
+                  <div className="design-skeleton" style={{ width: '60%', height: '24px' }}></div>
+                  <div className="design-skeleton" style={{ width: '60px', height: '20px', borderRadius: 'var(--radius-sm)' }}></div>
+                </div>
+                <div className="design-skeleton" style={{ width: '100%', height: '16px' }}></div>
+                <div className="design-skeleton" style={{ width: '90%', height: '16px' }}></div>
+                <div className="design-flex design-gap-4" style={{ alignItems: 'center' }}>
+                  <div className="design-skeleton" style={{ width: '80px', height: '20px' }}></div>
+                  <div className="design-skeleton" style={{ width: '100px', height: '20px' }}></div>
+                </div>
+                <div className="design-flex design-flex-end design-gap-2">
+                  <div className="design-skeleton" style={{ width: '80px', height: '32px' }}></div>
+                  <div className="design-skeleton" style={{ width: '100px', height: '32px' }}></div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
       ) : error ? (
-        <Text color="red">{error}</Text>
+        <div className="design-card" style={{ padding: 'var(--space-6)', color: 'var(--red-9)' }}>
+          {error}
+        </div>
       ) : filteredAds.length === 0 ? (
-        <Card>
-          <Flex direction="column" gap="3" align="center" justify="center" style={{ padding: '32px' }}>
-            <Text>
+        <div className="design-card">
+          <div className="design-empty-state">
+            <div className="design-empty-state-icon">
+              {routeMode === 'client' ? (
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4" />
+                  <path d="M4 6v12c0 1.1.9 2 2 2h14v-4" />
+                  <path d="M18 12c-1.1 0-2 .9-2 2s.9 2 2 2h4v-4h-4z" />
+                </svg>
+              ) : (
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
+                  <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+                </svg>
+              )}
+            </div>
+            <h3 className="design-heading-3" style={{ marginBottom: 'var(--space-2)' }}>
               {routeMode === 'client' 
                 ? "You haven't joined any advertisements yet." 
                 : "You haven't created any listings yet."}
-            </Text>
+            </h3>
             {routeMode === 'seller' ? (
               <Link to="/marketplace/create">
-                <Button>Create Your First Listing</Button>
+                <button className="design-button design-button-primary">Create Your First Listing</button>
               </Link>
             ) : (
               <Link to="/marketplace/browse">
-                <Button>Browse Advertisements</Button>
+                <button className="design-button design-button-primary">Browse Advertisements</button>
               </Link>
             )}
-          </Flex>
-        </Card>
+          </div>
+        </div>
       ) : (
-        <Flex direction="column" gap="3">
+        <div className="design-flex design-flex-col design-gap-4">
           {filteredAds.map((ad) => (
-            <Card key={ad.id}>
-              <Flex direction="column" gap="3">
-                <Flex justify="between" align="start">
-                  <Heading size="3">{ad.title}</Heading>
+            <div key={ad.id} className="design-card design-card-interactive">
+              <div className="design-flex design-flex-col design-gap-4">
+                <div className="design-flex design-flex-between" style={{ alignItems: 'flex-start' }}>
+                  <h3 className="design-heading-3">{ad.title}</h3>
                   {getStateBadge(ad.state, ad.userInteraction?.state)}
-                </Flex>
+                </div>
                 
-                <Text size="2">{ad.description}</Text>
+                <p style={{ 
+                  color: 'var(--gray-11)', 
+                  fontSize: '14px',
+                  overflow: 'hidden', 
+                  textOverflow: 'ellipsis', 
+                  display: '-webkit-box', 
+                  WebkitLineClamp: 2, 
+                  WebkitBoxOrient: 'vertical',
+                  minHeight: '40px',
+                  lineHeight: 1.4
+                }}>
+                  {ad.description}
+                </p>
                 
-                <Flex gap="3" align="center">
-                  <Flex gap="1" align="center">
+                <div className="design-flex design-gap-4" style={{ alignItems: 'center' }}>
+                  <div className="design-flex design-gap-1" style={{ alignItems: 'center' }}>
                     <DollarSign size={16} />
-                    <Text weight="bold">{formatCurrency(ad.amount)}</Text>
-                  </Flex>
+                    <span style={{ fontWeight: 'bold' }}>{formatCurrency(ad.amount)}</span>
+                  </div>
                   
-                  <Flex gap="1" align="center">
+                  <div className="design-flex design-gap-1" style={{ alignItems: 'center' }}>
                     <Clock size={16} />
-                    <Text size="2">{new Date(ad.createdAt).toLocaleDateString()}</Text>
-                  </Flex>
-                </Flex>
+                    <span style={{ fontSize: '14px' }}>{new Date(ad.createdAt).toLocaleDateString()}</span>
+                  </div>
+                </div>
                 
                 {ad.joinedBy && (
-                  <Flex gap="1" align="center">
+                  <div className="design-flex design-gap-1" style={{ alignItems: 'center' }}>
                     <User size={16} />
-                    <Text size="2">
-                      {/* Seller view: show who they are interacting with (joinedBy) */}
-                      {/* Client view: show who the seller is (creator) */}
+                    <span style={{ fontSize: '14px' }}>
                       {routeMode === 'seller' && ad.joinedBy ? 'Interacting with: ' : 'Seller: '}
                       {routeMode === 'seller' && ad.joinedBy ? formatAddress(ad.joinedBy) : formatAddress(ad.creator)}
-                    </Text>
-                  </Flex>
+                    </span>
+                  </div>
                 )}
                 
-                <Flex gap="3" justify="end">
-                  {/* Seller (Freelancer) specific actions on their listings */}
+                <div className="design-flex design-gap-3 design-flex-end">
                   {routeMode === 'seller' && ad.creator === currentAccount?.address && (
                     <>
-                      {ad.state === 0 && ( // Available listing (no interaction yet)
-                        <Button 
-                          variant="soft" 
-                          color="red" 
+                      {ad.state === 0 && (
+                        <button 
+                          className="design-button design-button-secondary"
                           onClick={() => cancelAdvertisement(ad.id)}
                         >
                           Cancel Listing
-                        </Button>
+                        </button>
                       )}
                       
-                      {/* Actions for listings with interactions */}
                       {ad.userInteraction && ad.userInteraction.state === INTERACTION_JOINED && (
                         <>
-                          <Button 
-                            color="green" 
+                          <button 
+                            className="design-button design-button-primary"
                             onClick={() => showMarkCompletedDialog(ad.id, ad.userInteraction!.user, ad.userInteraction!.id)}
                           >
                             <CheckCircle size={16} /> Mark Completed
-                          </Button>
-                          <Button 
-                            color="red" variant="soft"
+                          </button>
+                          <button 
+                            className="design-button design-button-secondary"
                             onClick={() => showDisputeDialog(ad.id, ad.userInteraction!.user, ad.userInteraction!.id)}
                           >
                             <AlertCircle size={16} /> Dispute
-                          </Button>
+                          </button>
                         </>
                       )}
                     </>
                   )}
                   
-                  {/* Client (Buyer) specific actions on ads they've joined */}
                   {routeMode === 'client' && ad.userInteraction && (
                     <>
                       {ad.userInteraction.state === INTERACTION_JOINED && (
-                        <Button 
-                          color="red" variant="soft"
+                        <button 
+                          className="design-button design-button-secondary"
                           onClick={() => showDisputeDialog(ad.id, currentAccount!.address, ad.userInteraction!.id)}
                         >
                           <AlertCircle size={16} /> Dispute
-                        </Button>
+                        </button>
                       )}
                       
                       {ad.userInteraction.state === INTERACTION_SELLER_COMPLETED && (
-                        <Flex gap="2">
-                          <Button 
-                            color="green" 
+                        <div className="design-flex design-gap-2">
+                          <button 
+                            className="design-button design-button-primary"
                             onClick={() => showReleaseDialog(ad.id, ad.userInteraction!.id)}
                           >
                             <CheckCircle size={16} /> Release Payment
-                          </Button>
-                          <Button 
-                            color="red" variant="soft"
+                          </button>
+                          <button 
+                            className="design-button design-button-secondary"
                             onClick={() => showDisputeDialog(ad.id, currentAccount!.address, ad.userInteraction!.id)}
                           >
                             <AlertCircle size={16} /> Dispute
-                          </Button>
-                        </Flex>
+                          </button>
+                        </div>
                       )}
                     </>
                   )}
                   
-                  {/* Common: Awaiting Resolution for disputed interactions */}
                   {ad.userInteraction?.state === INTERACTION_DISPUTED && (
-                    <Button color="red" variant="soft" disabled>
+                    <button className="design-button design-button-secondary" disabled>
                       <AlertCircle size={16} /> Awaiting Resolution
-                    </Button>
+                    </button>
                   )}
                   
-                  {/* View Interactions: For sellers to see all interactions on their ad */}
                   {routeMode === 'seller' && ad.creator === currentAccount?.address && (
-                    <Button onClick={() => viewInteractions(ad.id)}>
+                    <button 
+                      className="design-button design-button-secondary"
+                      onClick={() => viewInteractions(ad.id)}
+                    >
                       <Users size={16} /> View Interactions
-                    </Button>
+                    </button>
                   )}
                   
-                  {/* Chat button: if there's an interaction */}
-                  {ad.userInteraction && ( // Simpler check, as userInteraction implies an interaction for both roles on this page
-                    <Button 
-                      onClick={async (e) => {
-                        // Instead of navigating to a new URL, fetch the full advertisement
-                        // and open the chat dialog directly on this page
+                  {ad.userInteraction && (
+                    <button 
+                      className="design-button design-button-primary"
+                      onClick={async (e: React.MouseEvent) => {
                         e.preventDefault();
                         
                         try {
-                          // Fetch the full advertisement data which includes userProfiles
                           const adData = await fetchAdvertisements(suiClient, packageId, registryId);
                           const fullAd = adData.find(a => a.id === ad.id);
                           
@@ -526,25 +566,15 @@ export function MyAdvertisements({ routeMode }: MyAdvertisementsProps) {
                     >
                       <MessageCircle size={16} />
                       Chat
-                    </Button>
+                    </button>
                   )}
-                  
-                  {/* View Details button disabled as requested
-                  <Button 
-                    variant="soft" 
-                    onClick={() => navigate(`/marketplace/advertisement/${ad.id}`)}
-                  >
-                    View Details
-                  </Button>
-                  */}
-                </Flex>
-              </Flex>
-            </Card>
+                </div>
+              </div>
+            </div>
           ))}
-        </Flex>
+        </div>
       )}
       
-      {/* Confirmation Dialogs */}
       <DisputeConfirmation 
         open={showDisputeConfirmation}
         onOpenChange={setShowDisputeConfirmation}
@@ -565,74 +595,70 @@ export function MyAdvertisements({ routeMode }: MyAdvertisementsProps) {
         onConfirm={markCompleted}
       />
       
-      {/* Interactions Dialog */}
-      <Dialog.Root open={showInteractions} onOpenChange={setShowInteractions}>
-        <Dialog.Content style={{ maxWidth: '90vw', maxHeight: '90vh' }}>
-          <Flex direction="column" gap="3">
-            <Flex justify="between" align="center">
-              <Dialog.Title>
-                {selectedAdvertisement ? `Interactions for ${selectedAdvertisement.title}` : 'Interactions'}
-              </Dialog.Title>
-              <Dialog.Close>
-                <Button variant="ghost" color="gray">
-                  <X size={18} />
-                </Button>
-              </Dialog.Close>
-            </Flex>
-            
-            <Separator />
-            
-            <Box style={{ maxHeight: '70vh', overflow: 'auto' }}>
-              {selectedAdvertisement && currentAccount && (
-                <InteractionsList 
-                  advertisement={selectedAdvertisement}
-                  userAddress={currentAccount.address}
-                  isCreator={selectedAdvertisement.creator === currentAccount.address}
-                  onMarkCompleted={handleMarkCompletedFromList}
-                />
-              )}
-            </Box>
-          </Flex>
-        </Dialog.Content>
-      </Dialog.Root>
-      
-      {/* Chat Dialog */}
-      {showChat && selectedAdvertisement && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.5)',
-          zIndex: 9998,
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-        }}>
-          <Card style={{
-            width: '80vw',
+      {/* Interactions Modal */}
+      {showInteractions && selectedAdvertisement && (
+        <ScaledModalOverlay onClose={() => setShowInteractions(false)}>
+          <div className="design-card design-modal-content" style={{
             maxWidth: '90vw',
             maxHeight: '90vh',
-            padding: '20px',
-            position: 'relative',
-            zIndex: 9999,
+            width: '90vw',
+            padding: 'var(--space-6)'
           }}>
-            <Flex direction="column" gap="3">
-              <Flex justify="between" align="center">
-                <Heading size="4">
-                  Chat with {formatAddress(selectedAdvertisement.creator === currentAccount?.address 
-                    ? (selectedAdvertisement.userProfiles[currentAccount.address]?.interactions.find(i => i.id === selectedAdvertisement.userProfiles[currentAccount.address]?.interactions[0].id)?.user || '') 
-                    : selectedAdvertisement.creator)}
-                </Heading>
-                <Button variant="ghost" color="gray" onClick={() => setShowChat(false)}>
+            <div className="design-flex design-flex-col design-gap-3">
+              <div className="design-flex design-flex-between" style={{ alignItems: 'center' }}>
+                <h3 className="design-heading-3">
+                  {selectedAdvertisement ? `Interactions for ${selectedAdvertisement.title}` : 'Interactions'}
+                </h3>
+                <button 
+                  className="design-button design-button-ghost"
+                  onClick={() => setShowInteractions(false)}
+                >
                   <X size={18} />
-                </Button>
-              </Flex>
+                </button>
+              </div>
               
-              <Separator />
+              <div className="design-separator" style={{ margin: 'var(--space-2) 0' }}></div>
               
-              <Box style={{ height: '70vh' }}>
+              <div style={{ maxHeight: '70vh', overflow: 'auto' }}>
+                {selectedAdvertisement && currentAccount && (
+                  <InteractionsList 
+                    advertisement={selectedAdvertisement}
+                    userAddress={currentAccount.address}
+                    isCreator={selectedAdvertisement.creator === currentAccount.address}
+                    onMarkCompleted={handleMarkCompletedFromList}
+                  />
+                )}
+              </div>
+            </div>
+          </div>
+        </ScaledModalOverlay>
+      )}
+      
+      {/* Chat Modal */}
+      {showChat && selectedAdvertisement && (
+        <ScaledModalOverlay onClose={() => setShowChat(false)}>
+          <div className="design-card design-modal-content" style={{
+            width: '90vw',
+            maxWidth: '1000px',
+            maxHeight: '90vh',
+            padding: 'var(--space-6)'
+          }}>
+            <div className="design-flex design-flex-col design-gap-3">
+              <div className="design-flex design-flex-between" style={{ alignItems: 'center' }}>
+                <h4 className="design-heading-3">
+                  Chat with {formatAddress(selectedAdvertisement.creator === currentAccount?.address 
+                    ? (selectedAdvertisement.userProfiles[currentAccount.address]?.interactions.find(i => 
+                        i.id === selectedAdvertisement.userProfiles[currentAccount.address]?.interactions[0].id)?.user || '') 
+                    : selectedAdvertisement.creator)}
+                </h4>
+                <button className="design-button design-button-ghost" onClick={() => setShowChat(false)}>
+                  <X size={18} />
+                </button>
+              </div>
+              
+              <div className="design-separator" style={{ margin: 'var(--space-2) 0' }}></div>
+              
+              <div style={{ height: '70vh' }}>
                 <ChatWrapper 
                   advertisement={selectedAdvertisement}
                   userAddress={currentAccount?.address || ''}
@@ -656,11 +682,11 @@ export function MyAdvertisements({ routeMode }: MyAdvertisementsProps) {
                     }
                   }}
                 />
-              </Box>
-            </Flex>
-          </Card>
-        </div>
+              </div>
+            </div>
+          </div>
+        </ScaledModalOverlay>
       )}
-    </Flex>
+    </div>
   );
 }

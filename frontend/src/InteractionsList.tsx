@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useSuiClient, useSignAndExecuteTransaction, useCurrentAccount } from '@mysten/dapp-kit';
 import { useNetworkVariable } from './networkConfig';
-import { Button, Card, Flex, Text, Heading, Badge, Box, Dialog, Separator, Tabs } from '@radix-ui/themes';
 import { DisputeConfirmation, ReleasePaymentConfirmation, MarkCompletedConfirmation } from './components/ConfirmationDialogs';
 import { Clock, User, MessageCircle, AlertCircle, CheckCircle, X, ShieldAlert } from 'lucide-react';
 import { InteractionActionButtons } from './components/InteractionActionButtons';
@@ -9,6 +8,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Advertisement, Interaction, INTERACTION_JOINED, INTERACTION_SELLER_COMPLETED, INTERACTION_BUYER_APPROVED, INTERACTION_DISPUTED } from './types';
 import { formatAddress, formatCurrency, fetchAdvertisement as fetchAd, disputeInteraction, releasePayment } from './api';
 import { ChatWrapper } from './components/ChatWrapper';
+import { ScaledModalOverlay } from './components/ScaledPortal';
 
 interface InteractionsListProps {
   advertisement: Advertisement;
@@ -32,6 +32,7 @@ export function InteractionsList({
   const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
   const [lastPoll, setLastPoll] = useState(0);
   const [isDisputing, setIsDisputing] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [showDisputeConfirmation, setShowDisputeConfirmation] = useState(false);
   const [showReleaseConfirmation, setShowReleaseConfirmation] = useState(false);
   const [disputeInteractionData, setDisputeInteractionData] = useState<{userAddress: string, interactionId: number} | null>(null);
@@ -108,15 +109,15 @@ export function InteractionsList({
   const getStateBadge = (state: number) => {
     switch (state) {
       case INTERACTION_JOINED:
-        return <Badge color="blue">In Progress</Badge>;
+        return <span className="design-badge design-badge-info">In Progress</span>;
       case INTERACTION_SELLER_COMPLETED:
-        return <Badge color="yellow">Waiting Approval</Badge>;
+        return <span className="design-badge design-badge-warning">Waiting Approval</span>;
       case INTERACTION_BUYER_APPROVED:
-        return <Badge color="green">Completed</Badge>;
+        return <span className="design-badge design-badge-success">Completed</span>;
       case INTERACTION_DISPUTED:
-        return <Badge color="red">Disputed</Badge>;
+        return <span className="design-badge design-badge-error">Disputed</span>;
       default:
-        return <Badge color="gray">Unknown</Badge>;
+        return <span className="design-badge">Unknown</span>;
     }
   };
   
@@ -360,54 +361,108 @@ export function InteractionsList({
   };
   
   return (
-    <Flex direction="column" gap="3">
-      <Flex justify="between" align="center">
-        <Heading size="4">Interactions ({interactions.length})</Heading>
-      </Flex>
+    <div className="design-flex design-flex-col design-gap-3">
+      <div className="design-flex design-flex-between" style={{ alignItems: 'center' }}>
+        <h4 className="design-heading-3">Interactions ({interactions.length})</h4>
+      </div>
       
       {/* Filtering tabs for seller view */}
       {isCreator && (
-        <Tabs.Root value={activeTab} onValueChange={setActiveTab}>
-          <Tabs.List>
-            <Tabs.Trigger value="all">All</Tabs.Trigger>
-            <Tabs.Trigger value="inProgress">In Progress</Tabs.Trigger>
-            <Tabs.Trigger value="waitingApproval">Waiting Approval</Tabs.Trigger>
-            <Tabs.Trigger value="finished">Finished</Tabs.Trigger>
-            <Tabs.Trigger value="disputed">Disputed</Tabs.Trigger>
-          </Tabs.List>
-        </Tabs.Root>
+        <div className="design-card" style={{ padding: 'var(--space-4)' }}>
+          <div className="design-flex design-gap-4" style={{ borderBottom: '1px solid var(--gray-5)', paddingBottom: 'var(--space-2)' }}>
+            <button 
+              className={`design-button ${activeTab === 'all' ? 'design-button-primary' : 'design-button-ghost'}`}
+              onClick={() => setActiveTab('all')}
+            >
+              All
+            </button>
+            <button 
+              className={`design-button ${activeTab === 'inProgress' ? 'design-button-primary' : 'design-button-ghost'}`}
+              onClick={() => setActiveTab('inProgress')}
+            >
+              In Progress
+            </button>
+            <button 
+              className={`design-button ${activeTab === 'waitingApproval' ? 'design-button-primary' : 'design-button-ghost'}`}
+              onClick={() => setActiveTab('waitingApproval')}
+            >
+              Waiting Approval
+            </button>
+            <button 
+              className={`design-button ${activeTab === 'finished' ? 'design-button-primary' : 'design-button-ghost'}`}
+              onClick={() => setActiveTab('finished')}
+            >
+              Finished
+            </button>
+            <button 
+              className={`design-button ${activeTab === 'disputed' ? 'design-button-primary' : 'design-button-ghost'}`}
+              onClick={() => setActiveTab('disputed')}
+            >
+              Disputed
+            </button>
+          </div>
+        </div>
       )}
       
-      {interactions.length === 0 ? (
-        <Card>
-          <Text>No interactions yet.</Text>
-        </Card>
+      {isLoading ? (
+        <div className="design-grid design-grid-responsive">
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="design-card">
+              <div className="design-flex design-flex-col design-gap-3">
+                <div className="design-flex design-flex-between" style={{ alignItems: 'center' }}>
+                  <div className="design-skeleton" style={{ width: '120px', height: '20px' }}></div>
+                  <div className="design-skeleton" style={{ width: '80px', height: '20px' }}></div>
+                </div>
+                <div className="design-flex design-gap-3">
+                  <div className="design-skeleton" style={{ width: '100px', height: '16px' }}></div>
+                  <div className="design-skeleton" style={{ width: '80px', height: '16px' }}></div>
+                </div>
+                <div className="design-flex design-flex-end design-gap-2">
+                  <div className="design-skeleton" style={{ width: '80px', height: '32px' }}></div>
+                  <div className="design-skeleton" style={{ width: '100px', height: '32px' }}></div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : interactions.length === 0 ? (
+        <div className="design-empty-state">
+          <div className="design-empty-state-icon">
+            <User size={48} />
+          </div>
+          <h3 className="design-heading-3" style={{ marginBottom: 'var(--space-2)' }}>
+            No Interactions Yet
+          </h3>
+          <p style={{ color: 'var(--gray-11)', fontSize: '14px' }}>
+            When users interact with this advertisement, they will appear here.
+          </p>
+        </div>
       ) : (
         interactions.map(({ interaction, userAddress: interactionUserAddress }) => (
-          <Card key={`${interactionUserAddress}-${interaction.id}`}>
-            <Flex direction="column" gap="2">
-              <Flex justify="between" align="center">
-                <Flex gap="2" align="center">
+          <div key={`${interactionUserAddress}-${interaction.id}`} className="design-card">
+            <div className="design-flex design-flex-col design-gap-2">
+              <div className="design-flex design-flex-between" style={{ alignItems: 'center' }}>
+                <div className="design-flex design-gap-2" style={{ alignItems: 'center' }}>
                   <User size={16} />
-                  <Text>
+                  <span>
                     User: {formatAddress(interactionUserAddress)}
-                  </Text>
-                </Flex>
+                  </span>
+                </div>
                 {getStateBadge(interaction.state)}
-              </Flex>
+              </div>
               
-              <Flex gap="3" align="center">
-                <Flex gap="1" align="center">
+              <div className="design-flex design-gap-3" style={{ alignItems: 'center' }}>
+                <div className="design-flex design-gap-1" style={{ alignItems: 'center' }}>
                   <Clock size={16} />
-                  <Text size="2">Joined: {new Date(interaction.joinedAt).toLocaleDateString()}</Text>
-                </Flex>
+                  <span style={{ fontSize: '14px' }}>Joined: {new Date(interaction.joinedAt).toLocaleDateString()}</span>
+                </div>
                 
-                <Flex gap="1" align="center">
-                  <Text size="2">Interaction #{interaction.id}</Text>
-                </Flex>
-              </Flex>
+                <div className="design-flex design-gap-1" style={{ alignItems: 'center' }}>
+                  <span style={{ fontSize: '14px' }}>Interaction #{interaction.id}</span>
+                </div>
+              </div>
               
-              <Flex gap="2" justify="end">
+              <div className="design-flex design-gap-2 design-flex-end">
                 {/* Use the reusable InteractionActionButtons component */}
                 <InteractionActionButtons
                   advertisement={advertisement}
@@ -421,8 +476,9 @@ export function InteractionsList({
                   onReleasePayment={showReleaseDialog}
                 />
                 
-                <Button 
-                  onClick={(e) => {
+                <button 
+                  className="design-button design-button-primary"
+                  onClick={(e: React.MouseEvent) => {
                     // Prevent event bubbling that might trigger navigation
                     e.preventDefault();
                     e.stopPropagation();
@@ -431,10 +487,10 @@ export function InteractionsList({
                 >
                   <MessageCircle size={16} />
                   View Chat
-                </Button>
-              </Flex>
-            </Flex>
-          </Card>
+                </button>
+              </div>
+            </div>
+          </div>
         ))
       )}
       
@@ -453,41 +509,28 @@ export function InteractionsList({
         amount={advertisement.amount}
       />
       
-      {/* Simple Chat Popup - Appears directly in the page */}
+      {/* Scaled Chat Modal */}
       {showChat && selectedInteraction && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.5)',
-          zIndex: 9998,
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-        }}>
-          <Card style={{
-            width: '80vw',
-            maxWidth: '90vw',
+        <ScaledModalOverlay onClose={() => setShowChat(false)}>
+          <div className="design-card design-modal-content" style={{
+            width: '90vw',
+            maxWidth: '1000px',
             maxHeight: '90vh',
-            padding: '20px',
-            position: 'relative',
-            zIndex: 9999,
+            padding: 'var(--space-6)'
           }}>
-            <Flex direction="column" gap="3">
-              <Flex justify="between" align="center">
-                <Heading size="4">
+            <div className="design-flex design-flex-col design-gap-3">
+              <div className="design-flex design-flex-between" style={{ alignItems: 'center' }}>
+                <h4 className="design-heading-3">
                   Chat with {formatAddress(isCreator ? selectedInteraction.user : advertisement.creator)}
-                </Heading>
-                <Button variant="ghost" color="gray" onClick={() => setShowChat(false)}>
+                </h4>
+                <button className="design-button design-button-ghost" onClick={() => setShowChat(false)}>
                   <X size={18} />
-                </Button>
-              </Flex>
+                </button>
+              </div>
               
-              <Separator />
+              <div className="design-separator" style={{ margin: 'var(--space-2) 0' }}></div>
               
-              <Box style={{ height: '70vh' }}>
+              <div style={{ height: '70vh' }}>
                 <ChatWrapper 
                   advertisement={advertisement}
                   userAddress={isCreator ? selectedInteraction.user : currentAccount?.address || ''}
@@ -499,11 +542,11 @@ export function InteractionsList({
                   onDispute={showDisputeDialog}
                   onReleasePayment={showReleaseDialog}
                 />
-              </Box>
-            </Flex>
-          </Card>
-        </div>
+              </div>
+            </div>
+          </div>
+        </ScaledModalOverlay>
       )}
-    </Flex>
+    </div>
   );
 }

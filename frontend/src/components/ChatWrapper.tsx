@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { Card, Flex, Text, Box, TextField, Avatar, Badge, Dialog, IconButton, Button } from '@radix-ui/themes';
+import { Dialog } from '@radix-ui/themes';
 import { Send, Image, Paperclip, X, CheckCircle, AlertCircle, User, History } from 'lucide-react';
 import { ChatProvider, useChat } from '../contexts/ChatContext';
 import { Advertisement } from '../types';
@@ -102,9 +102,17 @@ const ChatUI: React.FC<ChatWrapperProps> = ({
   // Scroll to bottom of messages
   const scrollToBottom = (force = false) => {
     if (messagesEndRef.current) {
-      // Only use smooth scrolling for new messages, not for initial load
-      const behavior = force ? 'auto' : 'smooth';
-      messagesEndRef.current.scrollIntoView({ behavior });
+      // Get the parent container with overflow: auto
+      const messageContainer = messagesEndRef.current.parentElement;
+      if (messageContainer) {
+        // Only use smooth scrolling for new messages, not for initial load
+        const behavior = force ? 'auto' : 'smooth';
+        // Scroll the container instead of using scrollIntoView
+        messageContainer.scrollTo({
+          top: messageContainer.scrollHeight,
+          behavior
+        });
+      }
     }
   };
 
@@ -189,187 +197,221 @@ const ChatUI: React.FC<ChatWrapperProps> = ({
     const isCurrentUser = message.sender === currentAccount?.address;
     
     return (
-      <Box
+      <div
         key={message.id}
+        className="design-flex design-flex-col design-gap-1"
         style={{
           alignSelf: isCurrentUser ? 'flex-end' : 'flex-start',
           maxWidth: '70%',
-          marginBottom: '8px'
+          marginBottom: 'var(--space-3)'
         }}
       >
-        <Flex direction="column" gap="1">
-          {!isCurrentUser && (
-            <Text size="1" style={{ marginLeft: '8px' }}>
-              {message.sender.slice(0, 6)}...{message.sender.slice(-4)}
-            </Text>
+        {!isCurrentUser && (
+          <span style={{ 
+            marginLeft: 'var(--space-2)', 
+            color: 'var(--gray-10)',
+            fontWeight: 500,
+            fontSize: '12px'
+          }}>
+            {message.sender.slice(0, 6)}...{message.sender.slice(-4)}
+          </span>
+        )}
+        
+        <div
+          style={{
+            backgroundColor: isCurrentUser ? 'var(--accent-9)' : 'var(--gray-4)',
+            color: isCurrentUser ? 'white' : 'var(--gray-12)',
+            borderRadius: 'var(--radius-lg)',
+            padding: 'var(--space-3) var(--space-4)',
+            wordBreak: 'break-word',
+            boxShadow: 'var(--shadow-sm)',
+            transition: 'all var(--transition-fast)',
+            position: 'relative'
+          }}
+        >
+          {message.type === 'text' ? (
+            <p style={{ lineHeight: 1.4, margin: 0 }}>{message.content}</p>
+          ) : message.type === 'image' && (message.status === 'sending' || message.content.includes('Uploading')) ? (
+            // Uploading animation for images
+            <div className="design-loading" style={{ padding: 'var(--space-3)', width: '100%' }}>
+              <p style={{ fontWeight: 500, fontSize: '14px', margin: 0 }}>
+                {message.content}
+              </p>
+              <div style={{ 
+                marginTop: 'var(--space-2)',
+                display: 'flex',
+                gap: 'var(--space-1)',
+                alignItems: 'center'
+              }}>
+                <div className="design-skeleton" style={{ width: '4px', height: '4px', borderRadius: '50%' }}></div>
+                <div className="design-skeleton" style={{ width: '4px', height: '4px', borderRadius: '50%' }}></div>
+                <div className="design-skeleton" style={{ width: '4px', height: '4px', borderRadius: '50%' }}></div>
+              </div>
+            </div>
+          ) : message.type === 'image' ? (
+            <div style={{ position: 'relative' }}>
+              <img 
+                src={message.imageUrl || message.content} 
+                alt="Shared image" 
+                style={{ 
+                  maxWidth: '100%', 
+                  maxHeight: '200px', 
+                  borderRadius: 'var(--radius-md)',
+                  cursor: 'pointer', 
+                  objectFit: 'contain',
+                  transition: 'transform var(--transition-fast)'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
+                onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                onClick={() => {
+                  // Open image in dialog
+                  setDecryptedFileUrls([message.imageUrl || message.content]);
+                  setIsDialogOpen(true);
+                }}
+              />
+            </div>
+          ) : message.type === 'file' && message.status === 'sending' ? (
+            // Uploading animation for files
+            <div className="design-loading" style={{ padding: 'var(--space-3)', width: '100%' }}>
+              <p style={{ fontWeight: 500, fontSize: '14px', margin: 0 }}>
+                {message.content}
+              </p>
+              <div style={{ 
+                marginTop: 'var(--space-2)',
+                display: 'flex',
+                gap: 'var(--space-1)',
+                alignItems: 'center'
+              }}>
+                <div className="design-skeleton" style={{ width: '4px', height: '4px', borderRadius: '50%' }}></div>
+                <div className="design-skeleton" style={{ width: '4px', height: '4px', borderRadius: '50%' }}></div>
+                <div className="design-skeleton" style={{ width: '4px', height: '4px', borderRadius: '50%' }}></div>
+              </div>
+            </div>
+          ) : message.type === 'file' && message.fileUrl ? (
+            <div className="design-flex design-flex-col design-gap-2">
+              <p style={{ margin: 0 }}>{message.content}</p>
+              <a 
+                href={message.fileUrl} 
+                download={message.fileMetadata?.filename}
+                className="design-button design-button-secondary"
+                style={{ 
+                  textDecoration: 'none',
+                  fontSize: '12px',
+                  padding: 'var(--space-1) var(--space-2)',
+                  alignSelf: 'flex-start'
+                }}
+              >
+                Download File
+              </a>
+            </div>
+          ) : (
+            <p style={{ lineHeight: 1.4, margin: 0 }}>{message.content}</p>
           )}
+        </div>
+        
+        <div className="design-flex design-gap-1" style={{ 
+          justifyContent: isCurrentUser ? 'flex-end' : 'flex-start',
+          alignItems: 'center',
+          marginTop: 'var(--space-1)'
+        }}>
+          <span style={{ fontSize: '12px', color: 'var(--gray-9)' }}>
+            {formatTime(message.timestamp)}
+          </span>
           
-          <Box
-            style={{
-              backgroundColor: isCurrentUser ? 'var(--blue-9)' : 'var(--gray-3)',
-              color: isCurrentUser ? 'white' : 'var(--gray-12)',
-              borderRadius: '12px',
-              padding: '8px 12px',
-              wordBreak: 'break-word'
-            }}
-          >
-            {message.type === 'text' ? (
-              <Text>{message.content}</Text>
-            ) : message.type === 'image' && (message.status === 'sending' || message.content.includes('Uploading')) ? (
-              // Uploading animation for images
-              <Box className="telegram-upload-container" style={{ margin: '0', padding: '12px', width: '100%' }}>
-                <Text weight="medium" size="2">
-                  {message.content}
-                </Text>
-                <Box className="telegram-upload-dots" style={{ marginTop: '4px' }}>
-                  <Box className="telegram-dot" />
-                  <Box className="telegram-dot" />
-                  <Box className="telegram-dot" />
-                </Box>
-                <Box className="telegram-upload-progress" style={{ marginTop: '8px' }}>
-                  <Box className="telegram-progress-bar" />
-                </Box>
-              </Box>
-            ) : message.type === 'image' ? (
-              <Box style={{ position: 'relative' }}>
-                <img 
-                  src={message.imageUrl || message.content} 
-                  alt="Shared image" 
-                  style={{ 
-                    maxWidth: '100%', 
-                    maxHeight: '200px', 
-                    borderRadius: '8px',
-                    cursor: 'pointer', 
-                    objectFit: 'contain'
-                  }}
-                  onClick={() => {
-                    // Open image in dialog
-                    setDecryptedFileUrls([message.imageUrl || message.content]);
-                    setIsDialogOpen(true);
-                  }}
-                />
-              </Box>
-            ) : message.type === 'file' && message.status === 'sending' ? (
-              // Uploading animation for files
-              <Box className="telegram-upload-container" style={{ margin: '0', padding: '12px', width: '100%' }}>
-                <Text weight="medium" size="2">
-                  {message.content}
-                </Text>
-                <Box className="telegram-upload-dots" style={{ marginTop: '4px' }}>
-                  <Box className="telegram-dot" />
-                  <Box className="telegram-dot" />
-                  <Box className="telegram-dot" />
-                </Box>
-                <Box className="telegram-upload-progress" style={{ marginTop: '8px' }}>
-                  <Box className="telegram-progress-bar" />
-                </Box>
-              </Box>
-            ) : message.type === 'file' && message.fileUrl ? (
-              <Flex direction="column" gap="1">
-                <Text>{message.content}</Text>
-                <Button size="1" variant="soft" asChild>
-                  <a 
-                    href={message.fileUrl} 
-                    download={message.fileMetadata?.filename}
-                    style={{ textDecoration: 'none' }}
-                  >
-                    Download File
-                  </a>
-                </Button>
-              </Flex>
-            ) : (
-              <Text>{message.content}</Text>
-            )}
-          </Box>
-          
-          <Flex justify={isCurrentUser ? 'end' : 'start'} gap="1" align="center">
-            <Text size="1" style={{ color: 'var(--gray-9)' }}>
-              {formatTime(message.timestamp)}
-            </Text>
-            
-            {isCurrentUser && (
-              <Box style={{ color: 'var(--gray-9)' }}>
-                {message.status === 'sending' ? (
-                  <span style={{ fontSize: '12px' }}>Sending...</span>
-                ) : message.status === 'sent' ? (
-                  <CheckCircle size={12} />
-                ) : message.status === 'delivered' ? (
-                  <CheckCircle size={12} />
-                ) : (
-                  <CheckCircle size={12} style={{ color: 'var(--blue-9)' }} />
-                )}
-              </Box>
-            )}
-          </Flex>
-        </Flex>
-      </Box>
+          {isCurrentUser && (
+            <div style={{ color: 'var(--gray-9)' }}>
+              {message.status === 'sending' ? (
+                <span style={{ fontSize: '10px' }}>Sending...</span>
+              ) : message.status === 'sent' ? (
+                <CheckCircle size={10} />
+              ) : message.status === 'delivered' ? (
+                <CheckCircle size={10} />
+              ) : (
+                <CheckCircle size={10} style={{ color: 'var(--accent-9)' }} />
+              )}
+            </div>
+          )}
+        </div>
+      </div>
     );
   };
 
   return (
-    <Card style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <div className="design-card" style={{ 
+      height: '100%', 
+      display: 'flex', 
+      flexDirection: 'column',
+      padding: 0,
+      overflow: 'hidden'
+    }}>
       {/* Messages area */}
-      <Box style={{ 
+      <div style={{ 
         flex: 1, 
         overflowY: 'auto', 
-        padding: '16px', 
+        padding: 'var(--space-4)', 
         display: 'flex', 
         flexDirection: 'column',
-        position: 'relative' // For loading overlay
+        position: 'relative',
+        backgroundColor: 'var(--gray-1)'
       }}>
         {/* Always render messages if we have them, even during loading */}
         {messages.length === 0 ? (
-          <Flex 
-            direction="column" 
-            align="center" 
-            justify="center" 
-            style={{ height: '100%', color: 'var(--gray-9)' }}
-          >
-            <History size={48} />
-            <Text size="2" style={{ marginTop: '8px' }}>
-              {isLoading ? 'Loading messages...' : 'No messages yet'}
-            </Text>
-          </Flex>
+          <div className="design-empty-state">
+            <div className="design-empty-state-icon">
+              <History size={48} />
+            </div>
+            <h4 className="design-heading-4" style={{ marginBottom: 'var(--space-2)' }}>
+              {isLoading ? 'Loading Messages' : 'No Messages Yet'}
+            </h4>
+            <p style={{ fontSize: '14px', color: 'var(--gray-10)' }}>
+              {isLoading ? 'Decrypting your conversation...' : 'Start the conversation by sending a message'}
+            </p>
+          </div>
         ) : (
           messages.map(renderMessage)
         )}
         
         {/* Loading overlay - only show when we have messages */}
         {isLoading && messages.length > 0 && (
-          <Box style={{
+          <div style={{
             position: 'absolute',
-            top: '8px',
-            right: '8px',
-            background: 'var(--gray-3)',
-            padding: '4px 8px',
-            borderRadius: '4px',
+            top: 'var(--space-2)',
+            right: 'var(--space-2)',
+            background: 'var(--gray-4)',
+            padding: 'var(--space-1) var(--space-2)',
+            borderRadius: 'var(--radius-sm)',
             fontSize: '12px',
-            opacity: 0.8
+            opacity: 0.9,
+            boxShadow: 'var(--shadow-sm)'
           }}>
-            <Text size="1">Refreshing...</Text>
-          </Box>
+            <span style={{ fontSize: '12px' }}>Refreshing...</span>
+          </div>
         )}
         
         <div ref={messagesEndRef} />
-      </Box>
+      </div>
       
       {/* Input area */}
-      <Flex 
-        align="center" 
-        gap="2" 
-        style={{ 
-          borderTop: '1px solid var(--gray-5)', 
-          padding: '12px 16px',
-          backgroundColor: 'var(--gray-1)'
-        }}
-      >
-        <IconButton 
-          variant="ghost" 
+      <div className="design-flex design-gap-3" style={{ 
+        borderTop: '1px solid var(--gray-6)', 
+        padding: 'var(--space-4)',
+        backgroundColor: 'var(--gray-2)',
+        alignItems: 'flex-end'
+      }}>
+        <button 
+          className="design-button design-button-ghost design-focus-visible"
           onClick={() => fileInputRef.current?.click()}
           disabled={isSending}
+          style={{
+            padding: 'var(--space-2)',
+            minWidth: 'auto',
+            height: '40px',
+            width: '40px'
+          }}
         >
-          <Paperclip size={20} />
-        </IconButton>
+          <Paperclip size={18} />
+        </button>
+        
         <input 
           type="file" 
           ref={fileInputRef} 
@@ -378,8 +420,9 @@ const ChatUI: React.FC<ChatWrapperProps> = ({
           accept="*/*" // Accept all file types
         />
         
-        <Box style={{ flex: 1 }}>
+        <div style={{ flex: 1 }}>
           <input 
+            className="design-input design-focus-visible"
             placeholder="Type a message..." 
             value={newMessage}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewMessage(e.target.value)}
@@ -391,62 +434,77 @@ const ChatUI: React.FC<ChatWrapperProps> = ({
             }}
             disabled={isSending}
             style={{ 
-              width: '100%', 
-              padding: '8px', 
-              borderRadius: '4px', 
-              border: '1px solid var(--gray-5)' 
+              minHeight: '40px',
+              resize: 'none'
             }}
           />
-        </Box>
+        </div>
         
-        <Button 
-          variant="solid" 
+        <button 
+          className={`design-button design-button-primary design-focus-visible ${isSending ? 'design-loading' : ''}`}
           onClick={handleSendMessage}
           disabled={isSending || !newMessage.trim()}
+          style={{
+            minWidth: 'auto',
+            height: '40px',
+            width: '40px',
+            padding: 'var(--space-2)'
+          }}
         >
           <Send size={18} />
-        </Button>
-      </Flex>
+        </button>
+      </div>
       
       {/* Image preview dialog */}
       <Dialog.Root open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <Dialog.Content style={{ maxWidth: '80vw' }}>
-          <Dialog.Title>Walrus Decrypted Image</Dialog.Title>
+        <Dialog.Content className="design-modal-content" style={{ maxWidth: '80vw', maxHeight: '80vh' }}>
+          <Dialog.Title>Image Preview</Dialog.Title>
           
-          <Flex direction="column" gap="3">
+          <div className="design-flex design-flex-col design-gap-4">
             {decryptedFileUrls.map((url, index) => (
               <img 
                 key={index} 
                 src={url} 
                 alt={`Preview ${index + 1}`} 
-                style={{ maxWidth: '100%', borderRadius: '8px' }}
+                style={{ 
+                  maxWidth: '100%', 
+                  maxHeight: '60vh',
+                  borderRadius: 'var(--radius-md)',
+                  objectFit: 'contain'
+                }}
               />
             ))}
-          </Flex>
+          </div>
           
-          <Flex justify="end" gap="3" mt="4">
+          <div className="design-flex design-flex-end design-gap-3" style={{ marginTop: 'var(--space-4)' }}>
             <Dialog.Close>
-              <Button variant="soft">Close</Button>
+              <button className="design-button design-button-secondary">Close</button>
             </Dialog.Close>
-          </Flex>
+          </div>
         </Dialog.Content>
       </Dialog.Root>
       
       {/* Error dialog */}
       <Dialog.Root open={!!localError || !!error} onOpenChange={() => setLocalError(null)}>
-        <Dialog.Content>
-          <Dialog.Title>Error</Dialog.Title>
-          <Text>{localError || error}</Text>
-          <Flex justify="end" gap="3" mt="4">
+        <Dialog.Content className="design-modal-content">
+          <Dialog.Title className="design-flex design-gap-2" style={{ alignItems: 'center' }}>
+            <AlertCircle size={20} color="var(--red-9)" />
+            Error
+          </Dialog.Title>
+          <p style={{ marginTop: 'var(--space-2)' }}>{localError || error}</p>
+          <div className="design-flex design-flex-end design-gap-3" style={{ marginTop: 'var(--space-4)' }}>
             <Dialog.Close>
-              <Button variant="soft" onClick={() => setLocalError(null)}>
+              <button 
+                className="design-button design-button-secondary"
+                onClick={() => setLocalError(null)}
+              >
                 Close
-              </Button>
+              </button>
             </Dialog.Close>
-          </Flex>
+          </div>
         </Dialog.Content>
       </Dialog.Root>
-    </Card>
+    </div>
   );
 };
 
