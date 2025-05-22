@@ -50,6 +50,14 @@
       #__next {
         isolation: isolate;
       }
+      
+      /* Scale down the entire app to match 75% zoom appearance */
+      #root {
+        transform: scale(0.75);
+        transform-origin: top left;
+        width: 133.33%; /* Compensate for the scale to prevent horizontal scrolling */
+        height: 133.33%; /* Compensate for the scale to prevent vertical scrolling */
+      }
     </style>
   </head>
   <body>
