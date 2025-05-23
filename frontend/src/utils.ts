@@ -60,18 +60,42 @@ export const decryptEphemeralKey = async (
   txBytes: Uint8Array,
   sessionKey: SessionKey
 ): Promise<Uint8Array> => {
-
-  const decryptedKey = await client.decrypt({
-    data: encryptedKey,
-    sessionKey,
-    txBytes,
-  }).catch((err) => {
-    console.error('Error decrypting key:', err);
-    throw new Error('Failed to decrypt key');
+  // Add retry logic for more resilient decryption
+  let lastError: Error | null = null;
+  const maxRetries = 3;
+  
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      console.log(`Attempting to decrypt ephemeral key (attempt ${attempt + 1}/${maxRetries})...`);
+      
+      const decryptedKey = await client.decrypt({
+        data: encryptedKey,
+        sessionKey,
+        txBytes,
+      });
+      
+      if (!decryptedKey || decryptedKey.length === 0) {
+        console.error('Decryption returned empty key');
+        throw new Error('Decryption returned empty key');
+      }
+      
+      console.log('Ephemeral key decryption successful');
+      return decryptedKey;
+    } catch (err) {
+      console.error(`Error decrypting key (attempt ${attempt + 1}/${maxRetries}):`, err);
+      lastError = err instanceof Error ? err : new Error('Unknown decryption error');
+      
+      if (attempt < maxRetries - 1) {
+        // Wait before retrying with exponential backoff
+        const delay = Math.pow(2, attempt) * 500; // 500ms, 1s, 2s
+        console.log(`Retrying in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
   }
-  );
-
-  return decryptedKey;
+  
+  // If we get here, all retries failed
+  throw lastError || new Error('Failed to decrypt key after multiple attempts');
 };
 
 /**
@@ -316,10 +340,26 @@ export const storeEphemeralKey = (
   interactionId: number,
   key: Uint8Array
 ): void => {
+  if (!key || key.length === 0) {
+    console.error('Attempted to store empty ephemeral key');
+    return;
+  }
+  
   const keyId = `chat_key_${advertisementId}_${clientAddress}_${interactionId}`;
   const keyBase64 = btoa(String.fromCharCode(...key));
-  sessionStorage.setItem(keyId, keyBase64);
-  console.log(`Stored ephemeral key for chat: ${keyId}`);
+  
+  try {
+    sessionStorage.setItem(keyId, keyBase64);
+    console.log(`Stored ephemeral key for chat: ${keyId}`);
+    
+    // Verify storage was successful
+    const storedKey = sessionStorage.getItem(keyId);
+    if (!storedKey) {
+      console.error('Failed to verify stored ephemeral key');
+    }
+  } catch (err) {
+    console.error('Error storing ephemeral key:', err);
+  }
 };
 
 /**
@@ -335,19 +375,35 @@ export const retrieveEphemeralKey = (
   clientAddress: string,
   interactionId: number
 ): Uint8Array | null => {
-  const keyId = `chat_key_${advertisementId}_${clientAddress}_${interactionId}`;
-  const keyBase64 = sessionStorage.getItem(keyId);
-  
-  if (!keyBase64) {
-    console.log(`No ephemeral key found for chat: ${keyId}`);
+  try {
+    const keyId = `chat_key_${advertisementId}_${clientAddress}_${interactionId}`;
+    const keyBase64 = sessionStorage.getItem(keyId);
+    
+    if (!keyBase64) {
+      console.log(`No ephemeral key found for chat: ${keyId}`);
+      return null;
+    }
+    
+    // Convert from base64 to Uint8Array
+    const key = Uint8Array.from(
+      atob(keyBase64),
+      c => c.charCodeAt(0)
+    );
+    
+    // Validate key
+    if (!key || key.length === 0) {
+      console.error(`Retrieved invalid ephemeral key for chat: ${keyId}`);
+      // Remove invalid key
+      sessionStorage.removeItem(keyId);
+      return null;
+    }
+    
+    console.log(`Retrieved ephemeral key for chat: ${keyId} (length: ${key.length})`);
+    return key;
+  } catch (err) {
+    console.error('Error retrieving ephemeral key:', err);
     return null;
   }
-  
-  console.log(`Retrieved ephemeral key for chat: ${keyId}`);
-  return Uint8Array.from(
-    atob(keyBase64),
-    c => c.charCodeAt(0)
-  );
 };
 
 /**
