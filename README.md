@@ -1,7 +1,7 @@
 # [Trust Marketplace](https://trust-market.netlify.app/)
 
 Trust Marketplace ([view demo](https://trust-market.netlify.app/)) isn't just another gig platform—it's a rethinking of trust in digital conversations. As if you Chat with strangers, hire them, and a Guardian Angel, called Trust, makes sure you're never scammed for huge $$$s. 
-Is this impossible? Who's the Angel? How they do their tough job? 
+Is this impossible? Who's the Angel? How do they do their tough job? 
 
 Often - monetary Trust - this strong - is governed by centralized institutions, but imagine it emerges directly from cryptographic and blockchain-driven mechanisms. This is precisely what Trust Marketplace brings to the table.
 
