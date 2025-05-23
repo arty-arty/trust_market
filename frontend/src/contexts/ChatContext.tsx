@@ -266,6 +266,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     // First check if we have it in storage
     let ephemeralKey = retrieveEphemeralKey(advertisementId, clientAddress, interactionId);
     if (ephemeralKey) {
+      console.log(`Using cached ephemeral key for chat ${advertisementId}:${clientAddress}:${interactionId}`);
       return ephemeralKey;
     }
     
@@ -305,18 +306,49 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       
       const txBytes = await tx.build({ client: suiClient, onlyTransactionKind: true });
       
-      // Decrypt the key
-      ephemeralKey = await decryptEphemeralKey(
-        encryptedKeyBytes,
-        sealClient,
-        txBytes,
-        sessionKey
-      );
+      // Decrypt the key - with retry mechanism
+      let retryCount = 0;
+      const maxRetries = 3;
       
-      // Store for future use with client address
-      storeEphemeralKey(advertisementId, clientAddress, interactionId, ephemeralKey);
-      return ephemeralKey;
+      while (retryCount < maxRetries) {
+        try {
+          console.log(`Attempting to decrypt ephemeral key (attempt ${retryCount + 1}/${maxRetries})...`);
+          
+          ephemeralKey = await decryptEphemeralKey(
+            encryptedKeyBytes,
+            sealClient,
+            txBytes,
+            sessionKey
+          );
+          
+          if (ephemeralKey) {
+            console.log('Ephemeral key decryption successful');
+            // Store for future use with client address
+            storeEphemeralKey(advertisementId, clientAddress, interactionId, ephemeralKey);
+            return ephemeralKey;
+          } else {
+            console.error('Ephemeral key decryption returned null');
+            retryCount++;
+            
+            if (retryCount < maxRetries) {
+              // Wait before retrying
+              await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+          }
+        } catch (err) {
+          console.error(`Error decrypting ephemeral key (attempt ${retryCount + 1}/${maxRetries}):`, err);
+          retryCount++;
+          
+          if (retryCount < maxRetries) {
+            // Wait before retrying
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          } else {
+            throw err; // Re-throw the last error
+          }
+        }
+      }
       
+      throw new Error('Failed to decrypt chat key after multiple attempts');
     } catch (err) {
       console.error('Error fetching ephemeral key:', err);
       throw new Error('Failed to decrypt chat key. You may not have access to this chat.');
@@ -455,51 +487,35 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         return;
       }
       
-      // We need to determine the client address for this interaction
-      // First fetch the advertisement to get the interaction details
-      try {
-        const advertisement = await fetchAdvertisement(suiClient, currentAdvertisementId, packageId);
-        if (!advertisement) {
-          return;
-        }
-        
-        // Find the interaction to get the client address
-        const result = findInteraction(advertisement, currentInteractionId);
-        if (!result) {
-          return;
-        }
-        
-        const clientAddress = result.userAddress;
-        
-        // Skip if we already have the ephemeral key in storage
-        const existingKey = retrieveEphemeralKey(currentAdvertisementId, clientAddress, currentInteractionId);
-        if (existingKey) {
-          setEphemeralKeyFetched(chatKey);
-          return;
-        }
-      } catch (err) {
-        console.error('Error checking existing ephemeral key:', err);
-        return;
-      }
-      
       console.log('Auto-fetching ephemeral key after session key initialization...');
       setEphemeralKeyFetched(chatKey);
       
       try {
-        // Attempt to fetch the ephemeral key
-        await getEphemeralKey(currentAdvertisementId, currentInteractionId);
-        console.log('Ephemeral key auto-fetch successful');
+        // Force a fresh fetch of the ephemeral key
+        const ephemeralKey = await getEphemeralKey(currentAdvertisementId, currentInteractionId);
         
-        // Now load messages since we have the key
-        loadMessages(currentAdvertisementId, currentInteractionId);
+        if (ephemeralKey) {
+          console.log('Ephemeral key auto-fetch successful');
+          // Now load messages since we have the key
+          await loadMessages(currentAdvertisementId, currentInteractionId);
+        } else {
+          console.error('Ephemeral key auto-fetch returned null');
+          // Force a retry of the key initialization
+          setTimeout(() => {
+            setEphemeralKeyFetched(null);
+          }, 1000);
+        }
       } catch (err) {
         console.error('Auto-fetch ephemeral key failed:', err);
-        // Don't set error here as it will be handled when user tries to load messages
+        // Reset the fetch status after a delay to allow for retry
+        setTimeout(() => {
+          setEphemeralKeyFetched(null);
+        }, 1000);
       }
     };
     
     attemptEphemeralKeyFetch();
-  }, [sessionKey, currentAdvertisementId, currentInteractionId, sealClient, ephemeralKeyFetched, getEphemeralKey, loadMessages, suiClient, packageId, findInteraction]);
+  }, [sessionKey, currentAdvertisementId, currentInteractionId, sealClient, ephemeralKeyFetched, getEphemeralKey, loadMessages]);
 
   // Set up polling for message updates - fixed to prevent spam
   useEffect(() => {
@@ -510,23 +526,30 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
     
     // Only set up polling if we have a valid chat and session key
-    if (!currentAdvertisementId || currentInteractionId === null || !sessionKey) {
+    if (!currentAdvertisementId || currentInteractionId === null) {
       return;
     }
     
-    // Load messages immediately only if we haven't already loaded them via auto-fetch
-    const chatKey = `${currentAdvertisementId}_${currentInteractionId}`;
-    if (ephemeralKeyFetched !== chatKey) {
-      loadMessages(currentAdvertisementId, currentInteractionId);
+    // Load messages immediately if we have a session key
+    if (sessionKey) {
+      const chatKey = `${currentAdvertisementId}_${currentInteractionId}`;
+      if (ephemeralKeyFetched !== chatKey) {
+        console.log('Immediate message load triggered by polling setup');
+        loadMessages(currentAdvertisementId, currentInteractionId).catch(err => {
+          console.error('Error in immediate message load:', err);
+        });
+      }
     }
     
     // Set up polling every 3 seconds
     pollingIntervalRef.current = setInterval(() => {
-      // Only poll if not uploading files and we still have the same chat
-      if (!isFileUploading && uploadingFileIds.length === 0 && 
+      // Only poll if we have a session key, not uploading files, and we still have the same chat
+      if (sessionKey && !isFileUploading && uploadingFileIds.length === 0 && 
           currentAdvertisementId && currentInteractionId !== null) {
         console.log(`Polling messages for ${currentAdvertisementId}:${currentInteractionId}`);
-        loadMessages(currentAdvertisementId, currentInteractionId);
+        loadMessages(currentAdvertisementId, currentInteractionId).catch(err => {
+          console.error('Error in polling message load:', err);
+        });
       }
     }, 3000);
     
@@ -549,12 +572,15 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setCurrentInteractionId(interactionId);
   }, [currentAdvertisementId, currentInteractionId]);
 
-  // Initialize session key when account changes - bulletproof approach
+  // Initialize session key when account changes or when chat changes - bulletproof approach
   useEffect(() => {
     if (currentAccount && suiClient && !sessionKey && !isInitializingKey) {
-      initializeSessionKey();
+      console.log('Auto-initializing session key...');
+      initializeSessionKey().catch(err => {
+        console.error('Error in auto-initializing session key:', err);
+      });
     }
-  }, [currentAccount, suiClient, sessionKey, isInitializingKey, initializeSessionKey]);
+  }, [currentAccount, suiClient, sessionKey, isInitializingKey, initializeSessionKey, currentAdvertisementId, currentInteractionId]);
 
   // Clean up cache when account changes
   useEffect(() => {

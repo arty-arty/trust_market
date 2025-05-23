@@ -76,12 +76,24 @@ const ChatUI: React.FC<ChatWrapperProps> = ({
       
       if (chatInteractionId !== undefined) {
         console.log(`Initializing chat for advertisement ${advertisement.id}, interaction ${chatInteractionId}`);
-        setCurrentChat(advertisement.id, chatInteractionId);
+        
+        // Force a retry of key initialization if needed
+        if (keyInitializationError) {
+          console.log('Retrying key initialization due to previous error');
+          retryKeyInitialization();
+          
+          // Short delay before setting current chat to ensure key initialization has started
+          setTimeout(() => {
+            setCurrentChat(advertisement.id, chatInteractionId);
+          }, 500);
+        } else {
+          setCurrentChat(advertisement.id, chatInteractionId);
+        }
       } else {
         console.warn('No valid interaction ID found for chat initialization');
       }
     }
-  }, [advertisement, userAddress, interactionId, setCurrentChat]);
+  }, [advertisement, userAddress, interactionId, setCurrentChat, keyInitializationError, retryKeyInitialization]);
   
   // Local state for UI
   const [isSending, setIsSending] = useState(false);
