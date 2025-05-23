@@ -1,8 +1,11 @@
 # [Trust Marketplace](https://trust-market.netlify.app/)
 
-Trust Marketplace ([view demo](https://trust-market.netlify.app/)) isn't just another decentralized gig platform—it's a rethinking of trust in digital interactions. Imagine earth where trust isn't governed by centralized institutions, but emerges directly from cryptographic and blockchain-driven mechanisms. This is precisely what Trust Marketplace delivers.
+Trust Marketplace ([view demo](https://trust-market.netlify.app/)) isn't just another gig platform—it's a rethinking of trust in digital conversations. As if you Chat with strangers, hire them, and a Guardian Angel, called Trust, makes sure you're never scammed for huge $$$s. 
+Is this impossible? Who's the Angel? How they do their tough job? 
 
-Built atop the Sui blockchain, this peer-to-peer gig protocol integrates on-chain escrow, cryptographically enforced privacy (via AES-GCM encryption and [Seal protocol](frontend/src/utils.ts)), decentralized file storage ([Walrus](frontend/src/utils.ts)), and an on-chain reputation system. The protocol doesn't rely on conventional assumptions—everything is mathematically provable and enforced by [smart contract state](move/sources/marketplace.move) and cryptographic primitives.
+Often - monetary Trust - this strong - is governed by centralized institutions, but imagine it emerges directly from cryptographic and blockchain-driven mechanisms. This is precisely what Trust Marketplace brings to the table.
+
+Built atop the Sui blockchain, our peer-to-peer gig protocol integrates on-chain escrow, cryptographically enforced privacy (via AES-GCM encryption and [Seal protocol](frontend/src/utils.ts)), a Chat with decentralized file storage ([Walrus](frontend/src/utils.ts)), and an on-chain reputation system. The protocol doesn't rely on conventional assumptions —everything is mathematically provable and enforced by [smart contract state](move/sources/marketplace.move) and cryptographic primitives.
 
 > **Vision:** Trust Marketplace transcends gig work; it’s a composable trust engine. Its primitives—escrow, dispute resolution, cryptographic access control, and reputation management—are foundational building blocks for a broader, decentralized ecosystem. Think of it as the TCP/IP of decentralized trust.
 
