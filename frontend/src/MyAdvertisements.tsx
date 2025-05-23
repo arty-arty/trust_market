@@ -6,7 +6,7 @@ import { DisputeConfirmation, ReleasePaymentConfirmation, MarkCompletedConfirmat
 import { useNetworkVariable } from './networkConfig';
 import { Link, useNavigate } from 'react-router-dom';
 import { Clock, DollarSign, User, MessageCircle, AlertCircle, CheckCircle, Users, X } from 'lucide-react';
-import { Advertisement, Interaction, INTERACTION_JOINED, INTERACTION_SELLER_COMPLETED, INTERACTION_BUYER_APPROVED, INTERACTION_DISPUTED } from './types';
+import { Advertisement, Interaction, STATE_AVAILABLE, STATE_JOINED, STATE_COMPLETED, STATE_DISPUTED, INTERACTION_JOINED, INTERACTION_SELLER_COMPLETED, INTERACTION_BUYER_APPROVED, INTERACTION_DISPUTED } from './types';
 import { InteractionsList } from './InteractionsList';
 import { ChatWrapper } from './components/ChatWrapper';
 import { 
@@ -152,13 +152,23 @@ export function MyAdvertisements({ routeMode }: MyAdvertisementsProps) {
   
   // Get state badge
   const getStateBadge = (state: number, userInteractionState?: number) => {
-    // For state 2 (completed), we need to check the interaction state to determine if it's "Waiting Approval" or "Finished"
-    if (state === 2 && userInteractionState === INTERACTION_SELLER_COMPLETED) {
-      return <Badge color="yellow">Waiting Approval</Badge>;
-    } else if (state === 2 && userInteractionState === INTERACTION_BUYER_APPROVED) {
-      return <Badge color="green">Finished</Badge>;
+    // If we have an interaction state, use it for more accurate status
+    if (userInteractionState !== undefined) {
+      switch (userInteractionState) {
+        case INTERACTION_JOINED:
+          return <Badge color="blue">In Progress</Badge>;
+        case INTERACTION_SELLER_COMPLETED:
+          return <Badge color="yellow">Waiting Your Approval</Badge>;
+        case INTERACTION_BUYER_APPROVED:
+          return <Badge color="green">Completed</Badge>;
+        case INTERACTION_DISPUTED:
+          return <Badge color="red">Disputed</Badge>;
+        default:
+          break;
+      }
     }
     
+    // Fall back to advertisement state for ads without interactions
     const stateInfo = getStateInfo(state);
     return <Badge color={stateInfo.color as any}>{stateInfo.label}</Badge>;
   };

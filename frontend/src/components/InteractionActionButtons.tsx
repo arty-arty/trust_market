@@ -1,7 +1,7 @@
 import React from 'react';
 import { Button, Flex } from '@radix-ui/themes';
 import { CheckCircle, AlertCircle, ShieldAlert } from 'lucide-react';
-import { Advertisement, Interaction, INTERACTION_JOINED, INTERACTION_SELLER_COMPLETED, INTERACTION_BUYER_APPROVED, INTERACTION_DISPUTED } from '../types';
+import { Advertisement, Interaction, STATE_AVAILABLE, STATE_JOINED, STATE_COMPLETED, STATE_DISPUTED, INTERACTION_JOINED, INTERACTION_SELLER_COMPLETED, INTERACTION_BUYER_APPROVED, INTERACTION_DISPUTED } from '../types';
 
 interface InteractionActionButtonsProps {
   advertisement: Advertisement;

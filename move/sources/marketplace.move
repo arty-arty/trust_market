@@ -343,8 +343,8 @@ public fun release_payment(
     // Verify sender is the buyer (user in interaction)
     assert!(interaction.user == sender, ENotAuthorized);
     
-    // Verify interaction is in JOINED state
-    assert!(interaction.state == INTERACTION_JOINED, EInvalidState);
+    // Verify interaction is in SELLER_COMPLETED or DISPUTED state
+    assert!((interaction.state == INTERACTION_SELLER_COMPLETED) || (interaction.state == INTERACTION_DISPUTED), EInvalidState);
     
     // Update state to BUYER_APPROVED
     interaction.state = INTERACTION_BUYER_APPROVED;
@@ -386,8 +386,8 @@ public fun dispute_transaction(
         ENotAuthorized
     );
     
-    // Verify interaction is in SELLER_COMPLETED state
-    assert!(interaction.state == INTERACTION_SELLER_COMPLETED, EInvalidState);
+    // Verify interaction is not finished
+    assert!(!(interaction.state == INTERACTION_BUYER_APPROVED), EInvalidState);
     
     // Update state to DISPUTED
     interaction.state = INTERACTION_DISPUTED;

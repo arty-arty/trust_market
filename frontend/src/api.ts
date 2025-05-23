@@ -584,7 +584,7 @@ export const getStateInfo = (state: number): { label: string; color: string } =>
     case 0:
       return { label: 'Available', color: 'green' };
     case 1:
-      return { label: 'In Progress', color: 'blue' };
+      return { label: 'Joined', color: 'blue' };
     case 2:
       return { label: 'Completed', color: 'green' };
     case 3:

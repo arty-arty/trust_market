@@ -23,7 +23,7 @@ export interface Interaction {
   seller: string;
   assignedAdmin: string;
   chatMessages: ChatMessage[];
-  state: number; // 0: joined, 1: completed, 2: disputed
+  state: number; // 0: joined, 1: seller_completed, 2: buyer_approved, 3: disputed
   chatEphemeralKeyEncrypted?: Uint8Array; // Encrypted symmetric key for chat
 }
 
@@ -60,6 +60,12 @@ export interface Review {
   timestamp: number;
   resolutionType: number;
 }
+
+// Constants for advertisement states
+export const STATE_AVAILABLE = 0;
+export const STATE_JOINED = 1;
+export const STATE_COMPLETED = 2;
+export const STATE_DISPUTED = 3;
 
 // Constants for interaction states
 export const INTERACTION_JOINED = 0;

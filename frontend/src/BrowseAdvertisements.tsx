@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useCurrentAccount, useSuiClient, useSignAndExecuteTransaction } from '@mysten/dapp-kit';
 import { Button, Card, Flex, Grid, Text, Heading, Badge, Slider, Checkbox, Box, Dialog } from '@radix-ui/themes';
 import { useNetworkVariable } from './networkConfig';
-import { Link } from 'react-router-dom'; // Re-added Link
+import { Link, Navigate, useNavigate } from 'react-router-dom'; // Re-added Link and added useNavigate
 import { Search, Star, DollarSign, Users, Clock, Filter } from 'lucide-react';
 import { Advertisement, UserReputation } from './types';
 import { 
@@ -11,8 +11,18 @@ import {
   formatCurrency as formatCurrencyApi, 
   formatAddress,
   getStateInfo,
-  joinAdvertisement, 
+  joinAdvertisement
 } from './api';
+import {
+  STATE_AVAILABLE,
+  STATE_JOINED,
+  STATE_COMPLETED,
+  STATE_DISPUTED,
+  INTERACTION_JOINED,
+  INTERACTION_SELLER_COMPLETED,
+  INTERACTION_BUYER_APPROVED,
+  INTERACTION_DISPUTED
+} from './types';
 import { JoinAdvertisementConfirmation } from './components/ConfirmationDialogs'; 
 import { SealClient, getAllowlistedKeyServers } from '@mysten/seal'; 
 // import { toast } from 'react-toastify'; // Removed toast for now
@@ -80,6 +90,7 @@ export function BrowseAdvertisements() {
   const suiClient = useSuiClient();
   const currentAccount = useCurrentAccount();
   const { mutate: signAndExecuteTransaction } = useSignAndExecuteTransaction();
+  const navigate = useNavigate();
   
   // State for advertisements
   const [advertisements, setAdvertisements] = useState<Advertisement[]>([]);
@@ -458,12 +469,13 @@ export function BrowseAdvertisements() {
                 {
                   onSuccess: (result) => {
                     console.log('Joined advertisement successfully:', result);
-                    alert(`Successfully joined advertisement: ${selectedAdForJoin.title}`);
+                    //alert(`Successfully joined advertisement: ${selectedAdForJoin.title}`);
                     setIsJoining(false);
                     setShowJoinDialog(false);
-                    setSelectedAdForJoin(null);
+                    navigate('/marketplace/my-deals');
                     // TODO: Consider re-fetching advertisements or updating UI more gracefully
                     // For now, user might need to manually refresh to see changes in their joined ads.
+                    // Calling loadAdvertisements() here might be an option if it's refactored to be callable.
                     // Calling loadAdvertisements() here might be an option if it's refactored to be callable.
                   },
                   onError: (error) => {

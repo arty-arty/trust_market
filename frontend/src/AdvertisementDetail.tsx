@@ -9,7 +9,7 @@ import { Link, useParams, useNavigate, useLocation } from 'react-router-dom';
 import { DollarSign, Clock, User, MessageCircle, AlertCircle, CheckCircle, X } from 'lucide-react';
 import { InteractionActionButtons } from './components/InteractionActionButtons';
 import { ChatWrapper } from './components/ChatWrapper';
-import { Advertisement as AdvertisementType, Interaction, UserProfile, INTERACTION_JOINED, INTERACTION_SELLER_COMPLETED, INTERACTION_BUYER_APPROVED, INTERACTION_DISPUTED } from './types';
+import { Advertisement as AdvertisementType, Interaction, UserProfile, STATE_AVAILABLE, STATE_JOINED, STATE_COMPLETED, STATE_DISPUTED, INTERACTION_JOINED, INTERACTION_SELLER_COMPLETED, INTERACTION_BUYER_APPROVED, INTERACTION_DISPUTED } from './types';
 import { generateAndEncryptEphemeralKey, storeEphemeralKey } from './utils';
 import { 
   fetchAdvertisement as fetchAd, 

@@ -85,7 +85,8 @@ export function CreateAdvertisement() {
           
           if (createdObjectId) {
             // Navigate to the advertisement detail page
-            navigate(`/marketplace/advertisement/${createdObjectId}`);
+            //navigate(`/marketplace/advertisement/${createdObjectId}`);
+            navigate(`/marketplace/my-listings`);
           } else {
             // Navigate to My Advertisements page
             navigate('/marketplace/my-advertisements');

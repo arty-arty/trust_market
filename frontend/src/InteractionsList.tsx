@@ -6,7 +6,7 @@ import { DisputeConfirmation, ReleasePaymentConfirmation, MarkCompletedConfirmat
 import { Clock, User, MessageCircle, AlertCircle, CheckCircle, X, ShieldAlert } from 'lucide-react';
 import { InteractionActionButtons } from './components/InteractionActionButtons';
 import { Link, useNavigate } from 'react-router-dom';
-import { Advertisement, Interaction, INTERACTION_JOINED, INTERACTION_SELLER_COMPLETED, INTERACTION_BUYER_APPROVED, INTERACTION_DISPUTED } from './types';
+import { Advertisement, Interaction, STATE_AVAILABLE, STATE_JOINED, STATE_COMPLETED, STATE_DISPUTED, INTERACTION_JOINED, INTERACTION_SELLER_COMPLETED, INTERACTION_BUYER_APPROVED, INTERACTION_DISPUTED } from './types';
 import { formatAddress, formatCurrency, fetchAdvertisement as fetchAd, disputeInteraction, releasePayment } from './api';
 import { ChatWrapper } from './components/ChatWrapper';
 
