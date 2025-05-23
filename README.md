@@ -34,14 +34,14 @@ Built atop the Sui blockchain, our peer-to-peer gig protocol integrates on-chain
 
 ### 2. Secure Communication
 
-- 💬 **Chat:** All interactions—messages and files—are client-side encrypted using AES-GCM and transmitted via blockchain state references. Files are stored on [Walrus](frontend/src/utils.ts), decentralized storage, linked to gig interactions. Metadata is inside the binary blob file, everything encrypted together. Upon decryption
+- 💬 **Chat:** All interactions—messages and files—are client-side encrypted using [AES-GCM](https://github.com/avalias/trust_market/blob/e506eb338b55777a473eaed5bda024a613b596b3/frontend/src/utils.ts#L278) and transmitted via blockchain state references. Files are stored on [Walrus](frontend/src/utils.ts), decentralized storage, [linked to gig interactions](https://github.com/avalias/trust_market/blob/e506eb338b55777a473eaed5bda024a613b596b3/move/sources/marketplace.move#L420). Metadata is inside the binary blob file, everything encrypted together. Upon decryption
 - 🔒 **Privacy:** Cryptographic acess control rules, written in the ([`seal_approve`](move/sources/marketplace.move)) of the smart-contract ensure that only gig participants can decrypt messages. Platform operators remain completely blind unless explicitly granted access during disputes.
 
 ### 3. Escrow & Dispute Resolution
 
 - ✅ **Completion:** The seller marks the gig complete; the buyer approves and releases payment from escrow ([`mark_completed_entry`, `release_payment_entry`](move/sources/marketplace.move)).
-- ⚡ **Disputes:** Either party can invoke a dispute. A decentralized, on-chain mechanism randomly selects an admin to arbitrate ([`select_random_admin`](move/sources/marketplace.move)).
-- 🕵️ **Admin Oversight:** Admins gain cryptographically verifiable access only to disputed interactions, controlled by smart contract logic ([`seal_approve`](move/sources/marketplace.move)).
+- ⚡ **Disputes:** Either party can invoke a dispute. A decentralized, on-chain mechanism randomly selects an admin to arbitrate ([`select_random_admin`](https://github.com/avalias/trust_market/blob/e506eb338b55777a473eaed5bda024a613b596b3/move/sources/marketplace.move#L226)).
+- 🕵️ **Admin Oversight:** Admins gain cryptographically verifiable access only to disputed interactions, controlled by smart contract logic ([`seal_approve`](https://github.com/avalias/trust_market/blob/e506eb338b55777a473eaed5bda024a613b596b3/move/sources/marketplace.move#L632)).
 
 ### 4. Reputation System
 
@@ -85,7 +85,7 @@ graph TD
 ## Cryptography & Access Control
 
 - **Ephemeral Encryption Keys:**  
-  Unique, ephemeral 32-byte AES keys generated client-side per interaction, sealed securely on-chain via threshold cryptography ([`generateAndEncryptEphemeralKey`](frontend/src/utils.ts)).
+  Unique, ephemeral 32-byte AES keys generated client-side per interaction, Sealed🦭 securely on-chain via threshold cryptography ([`generateAndEncryptEphemeralKey`](frontend/src/utils.ts)).
 - **End-to-End Encrypted Communication:**  
   All messages and files protected by AES-GCM encryption; decrypted solely by interaction participants or assigned dispute admins ([`ChatWrapper.tsx`](frontend/src/components/ChatWrapper.tsx), [`ChatContext.tsx`](frontend/src/contexts/ChatContext.tsx)).
 - **No Persistent Local Storage:**  
@@ -127,18 +127,15 @@ graph TD
 
 ## Research & Roadmap
 
-- **Trust as Infrastructure:**  
-  This isn't simply a gig marketplace —it's foundational trusted-communication engine. Trust will span applications from P2P deals, and business communications, to who knows - decentralized science (mathoverfollow with rewards, and group encryption), chating with a psychologist or getting insurance straight from the Chat, and far beyond.
-
 - **Decentralized Admin Registry:**  
-  Future governance includes DAO-driven admin selection (voting of governors).
+  Future governance includes DAO-driven admin selection (voting of governors to select best people or to banish an evil admin ;)
 - **Zero-Knowledge Integration:**  
   zkLogin-based reputation verification will tie decentralized trust directly to provable social identities (Google Account e.t.c.).
 - **Composable Reputation:**  
   Reputation scores will become portable across various dApps inside Sui ecosystem.
 - **Ecosystem Composability:**  
   Escrow and encrypted chat primitives will be standardized like wallet-adapters to use in any dApp.
-  Means a wallet-connect like plug&play repo to drop-in Seal encrypted Chats with storage on Walrus.
+  It means a wallet-connect like plug&play hooks to drop-in Seal encrypted Chats everywhere.
 ---
 
 ## Getting Started
@@ -147,15 +144,16 @@ graph TD
 
 - Node.js v18+
 - pnpm
-- Sui Testnet Wallet ([docs](https://docs.sui.io/build/install))
-
+- Sui CLI ([docs](https://docs.sui.io/build/install)), install with homebrew is a breeze!
+- [Slush wallet](https://chromewebstore.google.com/detail/slush-%E2%80%94-a-sui-wallet/opcgpfmipidbgpenhmajoajpbobppdil) is top.
+  
 ### Setup
 
 ```bash
-git clone https://github.com/trust-marketplace/core
-cd trust-marketplace
+git clone https://github.com/avalias/trust-marketplace
+cd trust-marketplace/frontend
 pnpm install
-pnpm dev
+pnpm run dev
 ```
 
 Ensure your Sui Testnet wallet has test tokens available via [faucet](https://faucet.sui.io/).
@@ -168,6 +166,7 @@ MIT
 
 ---
 
-Trust Marketplace integrates cutting-edge cryptographic protocols ([Seal](frontend/src/utils.ts), AES-GCM) and robust on-chain mechanisms ([Move smart contracts](move/sources/marketplace.move)). Every aspect of security, privacy, and dispute resolution is backed by explicit cryptographic and mathematical proofs, setting a new standard for decentralized interactions.
+Trust Marketplace integrates cutting-edge cryptographic protocols ([Seal](frontend/src/utils.ts)), established cryptographic primitives like AES-GCM, and robust on-chain mechanisms ([Move smart contracts](move/sources/marketplace.move)). Every aspect of security, privacy, and dispute resolution is backed by explicit cryptographic and mathematical proofs, setting a new standard for decentralized interactions.
+Trust Marketplace implements privacy, access control, and dispute resolution using explicit cryptographic protocols (Seal, AES-GCM) and on-chain state machines (Move). 
 
-In a future powered by decentralized technology, Trust Marketplace isn't just a choice—it's inevitable.
+The project is open to extension and research in decentralized trust, composable reputation, and cryptographic dispute resolution.
