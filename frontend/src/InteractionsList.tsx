@@ -332,6 +332,9 @@ export function InteractionsList({
         onSuccess: async (result) => {
           console.log('Payment released:', result);
           
+          // Capture the current value before state updates
+          const currentReleaseData = releaseInteractionData;
+          
           // Update the advertisement state in the local state
           setAdvertisement(prev => {
             const updatedProfiles = { ...prev.userProfiles };
@@ -339,7 +342,7 @@ export function InteractionsList({
             // Find and update the interaction
             Object.entries(updatedProfiles).forEach(([address, profile]) => {
               profile.interactions = profile.interactions.map(interaction => {
-                if (interaction.id === releaseInteractionData?.interactionId) {
+                if (interaction.id === currentReleaseData?.interactionId) {
                   return { ...interaction, state: INTERACTION_BUYER_APPROVED };
                 }
                 return interaction;
