@@ -65,7 +65,8 @@ export const decryptEphemeralKey = async (
   encryptedKey: Uint8Array,
   client: SealClient,
   txBytes: Uint8Array,
-  sessionKey: SessionKey
+  sessionKey: SessionKey,
+  logPrefix: string = '[Utils::EphemeralDecrypt]' // Optional log prefix with default
 ): Promise<Uint8Array> => {
   // Add retry logic for more resilient decryption
   let lastError: Error | null = null;
@@ -73,7 +74,7 @@ export const decryptEphemeralKey = async (
   
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
-      console.log(`Attempting to decrypt ephemeral key (attempt ${attempt + 1}/${maxRetries})...`);
+      console.log(`${logPrefix} Attempting to decrypt ephemeral key (attempt ${attempt + 1}/${maxRetries})...`);
       
       const decryptedKey = await client.decrypt({
         data: encryptedKey,
@@ -82,26 +83,32 @@ export const decryptEphemeralKey = async (
       });
       
       if (!decryptedKey || decryptedKey.length === 0) {
-        console.error('Decryption returned empty key');
+        console.error(`${logPrefix} Decryption returned empty key (attempt ${attempt + 1}/${maxRetries}).`);
         throw new Error('Decryption returned empty key');
       }
       
-      console.log('Ephemeral key decryption successful');
+      console.log(`${logPrefix} Ephemeral key decryption successful (attempt ${attempt + 1}/${maxRetries}).`);
       return decryptedKey;
     } catch (err) {
-      console.error(`Error decrypting key (attempt ${attempt + 1}/${maxRetries}):`, err);
+      console.error(`${logPrefix} Error decrypting key (attempt ${attempt + 1}/${maxRetries}):`, err);
       lastError = err instanceof Error ? err : new Error('Unknown decryption error');
       
+      if (err instanceof NoAccessError) {
+        console.error(`${logPrefix} NoAccessError encountered. Aborting retries.`);
+        throw err; // No point in retrying NoAccessError
+      }
+
       if (attempt < maxRetries - 1) {
         // Wait before retrying with exponential backoff
         const delay = Math.pow(2, attempt) * 500; // 500ms, 1s, 2s
-        console.log(`Retrying in ${delay}ms...`);
+        console.log(`${logPrefix} Retrying in ${delay}ms...`);
         await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
   }
   
   // If we get here, all retries failed
+  console.error(`${logPrefix} Failed to decrypt key after ${maxRetries} attempts.`);
   throw lastError || new Error('Failed to decrypt key after multiple attempts');
 };
 
@@ -344,53 +351,11 @@ export const storeEphemeralKey = (
   advertisementId: string,
   clientAddress: string,
   interactionId: number,
-  key: Uint8Array
+  key: Uint8Array,
+  logPrefix: string = '[Utils::EphemeralStore]'
 ): void => {
-  if (!key || key.length === 0) {
-    console.error('Attempted to store empty ephemeral key');
-    return;
-  }
-  
-  const keyId = `chat_key_${advertisementId}_${clientAddress}_${interactionId}`;
-  const keyBase64 = btoa(String.fromCharCode(...key));
-  
-  // Store in multiple places for redundancy
-  try {
-    // 1. Store in sessionStorage (primary)
-    sessionStorage.setItem(keyId, keyBase64);
-    
-    // 2. Store in localStorage (backup)
-    localStorage.setItem(keyId, keyBase64);
-    
-    // 3. Store in memory cache (for immediate access)
-    if (!window._ephemeralKeyCache) {
-      window._ephemeralKeyCache = {};
-    }
-    window._ephemeralKeyCache[keyId] = key;
-    
-    console.log(`Stored ephemeral key for chat: ${keyId} (length: ${key.length})`);
-    
-    // Verify storage was successful
-    const sessionStorageKey = sessionStorage.getItem(keyId);
-    const localStorageKey = localStorage.getItem(keyId);
-    
-    if (!sessionStorageKey && !localStorageKey) {
-      console.error('Failed to verify stored ephemeral key in any storage');
-    }
-  } catch (err) {
-    console.error('Error storing ephemeral key:', err);
-    
-    // Last resort - try to store in a global variable if storage APIs fail
-    try {
-      if (!window._ephemeralKeyCache) {
-        window._ephemeralKeyCache = {};
-      }
-      window._ephemeralKeyCache[keyId] = key;
-      console.log('Stored ephemeral key in memory cache only');
-    } catch (memErr) {
-      console.error('Failed to store ephemeral key anywhere:', memErr);
-    }
-  }
+  // Storage is removed for simplification. This function is now a no-op.
+  console.log(`${logPrefix} storeEphemeralKey called for ad ${advertisementId}, int ${interactionId}. Storage is disabled.`);
 };
 
 /**
@@ -403,70 +368,12 @@ export const storeEphemeralKey = (
 export const retrieveEphemeralKey = (
   advertisementId: string,
   clientAddress: string,
-  interactionId: number
+  interactionId: number,
+  logPrefix: string = '[Utils::EphemeralRetrieve]'
 ): Uint8Array | null => {
-  const keyId = `chat_key_${advertisementId}_${clientAddress}_${interactionId}`;
-  
-  try {
-    // 1. Try memory cache first (fastest)
-    if (window._ephemeralKeyCache && window._ephemeralKeyCache[keyId]) {
-      const cachedKey = window._ephemeralKeyCache[keyId];
-      if (cachedKey && cachedKey.length > 0) {
-        console.log(`Retrieved ephemeral key from memory cache: ${keyId} (length: ${cachedKey.length})`);
-        return cachedKey;
-      }
-    }
-    
-    // 2. Try sessionStorage (primary storage)
-    const sessionKeyBase64 = sessionStorage.getItem(keyId);
-    if (sessionKeyBase64) {
-      try {
-        const key = Uint8Array.from(atob(sessionKeyBase64), c => c.charCodeAt(0));
-        if (key && key.length > 0) {
-          console.log(`Retrieved ephemeral key from sessionStorage: ${keyId} (length: ${key.length})`);
-          
-          // Update memory cache
-          if (!window._ephemeralKeyCache) {
-            window._ephemeralKeyCache = {};
-          }
-          window._ephemeralKeyCache[keyId] = key;
-          
-          return key;
-        }
-      } catch (convErr) {
-        console.error('Error converting sessionStorage key:', convErr);
-      }
-    }
-    
-    // 3. Try localStorage (backup storage)
-    const localKeyBase64 = localStorage.getItem(keyId);
-    if (localKeyBase64) {
-      try {
-        const key = Uint8Array.from(atob(localKeyBase64), c => c.charCodeAt(0));
-        if (key && key.length > 0) {
-          console.log(`Retrieved ephemeral key from localStorage: ${keyId} (length: ${key.length})`);
-          
-          // Restore to sessionStorage and memory cache
-          sessionStorage.setItem(keyId, localKeyBase64);
-          
-          if (!window._ephemeralKeyCache) {
-            window._ephemeralKeyCache = {};
-          }
-          window._ephemeralKeyCache[keyId] = key;
-          
-          return key;
-        }
-      } catch (convErr) {
-        console.error('Error converting localStorage key:', convErr);
-      }
-    }
-    
-    console.log(`No ephemeral key found for chat: ${keyId} in any storage`);
-    return null;
-  } catch (err) {
-    console.error('Error retrieving ephemeral key:', err);
-    return null;
-  }
+  // Storage is removed for simplification. Always return null to force decryption.
+  console.log(`${logPrefix} retrieveEphemeralKey called for ad ${advertisementId}, int ${interactionId}. Storage is disabled, returning null.`);
+  return null;
 };
 
 /**
@@ -478,82 +385,19 @@ export const retrieveEphemeralKey = (
 export const clearEphemeralKey = (
   advertisementId: string,
   clientAddress: string,
-  interactionId: number
+  interactionId: number,
+  logPrefix: string = '[Utils::EphemeralClear]'
 ): void => {
-  const keyId = `chat_key_${advertisementId}_${clientAddress}_${interactionId}`;
-  
-  // Clear from all storage mechanisms
-  try {
-    sessionStorage.removeItem(keyId);
-  } catch (e) {
-    console.warn('Failed to clear from sessionStorage:', e);
-  }
-  
-  try {
-    localStorage.removeItem(keyId);
-  } catch (e) {
-    console.warn('Failed to clear from localStorage:', e);
-  }
-  
-  // Clear from memory cache
-  if (window._ephemeralKeyCache && keyId in window._ephemeralKeyCache) {
-    delete window._ephemeralKeyCache[keyId];
-  }
-  
-  console.log(`Cleared ephemeral key for chat: ${keyId} from all storage mechanisms`);
+  // Storage is removed for simplification. This function is now a no-op.
+  console.log(`${logPrefix} clearEphemeralKey called for ad ${advertisementId}, int ${interactionId}. Storage is disabled.`);
 };
 
 /**
  * Clear all ephemeral keys from all storage mechanisms
  */
-export const clearAllEphemeralKeys = (): void => {
-  // Collect keys from sessionStorage
-  const keysToRemove: string[] = [];
-  
-  try {
-    for (let i = 0; i < sessionStorage.length; i++) {
-      const key = sessionStorage.key(i);
-      if (key && key.startsWith('chat_key_')) {
-        keysToRemove.push(key);
-      }
-    }
-  } catch (e) {
-    console.warn('Error accessing sessionStorage:', e);
-  }
-  
-  // Add keys from localStorage
-  try {
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && key.startsWith('chat_key_') && !keysToRemove.includes(key)) {
-        keysToRemove.push(key);
-      }
-    }
-  } catch (e) {
-    console.warn('Error accessing localStorage:', e);
-  }
-  
-  // Clear all collected keys
-  keysToRemove.forEach(key => {
-    try {
-      sessionStorage.removeItem(key);
-    } catch (e) {
-      console.warn(`Failed to remove ${key} from sessionStorage:`, e);
-    }
-    
-    try {
-      localStorage.removeItem(key);
-    } catch (e) {
-      console.warn(`Failed to remove ${key} from localStorage:`, e);
-    }
-  });
-  
-  // Clear memory cache
-  if (window._ephemeralKeyCache) {
-    window._ephemeralKeyCache = {};
-  }
-  
-  console.log(`Cleared ${keysToRemove.length} ephemeral keys from all storage mechanisms`);
+export const clearAllEphemeralKeys = (logPrefix: string = '[Utils::EphemeralClearAll]'): void => {
+  // Storage is removed for simplification. This function is now a no-op.
+  console.log(`${logPrefix} clearAllEphemeralKeys called. Storage is disabled.`);
 };
 
 // Disclaimer Some Functions are inspired by Mysten's Seal Example :)

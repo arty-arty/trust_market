@@ -61,12 +61,7 @@ interface ChatContextType {
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
-// Global session key cache to prevent multiple initializations across components
-const globalSessionKeyCache = new Map<string, {
-  sessionKey: SessionKey | null;
-  isInitializing: boolean;
-  initPromise: Promise<SessionKey | null> | null;
-}>();
+// Global session key cache REMOVED for simplification
 
 export function ChatProvider({ children }: { children: ReactNode }) {
   const suiClient = useSuiClient();
@@ -87,7 +82,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   
   // Session key management - bulletproof approach
   const [sessionKey, setSessionKey] = useState<SessionKey | null>(null);
-  const { mutate: signPersonalMessage } = useSignPersonalMessage();
+  const { 
+    mutate: signPersonalMessage, 
+    reset: resetSignPersonalMessage, 
+    isPending: isSignPersonalMessagePending 
+  } = useSignPersonalMessage();
   const { mutate: signAndExecute } = useSignAndExecuteTransaction();
   
   // Polling management
@@ -97,6 +96,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   
   // Track if we've attempted to fetch ephemeral key for current chat
   const [ephemeralKeyFetched, setEphemeralKeyFetched] = useState<string | null>(null);
+  // const signPromiseRef = useRef<Promise<SessionKey | null> | null>(null); // REMOVED
   
   // Initialize SealClient
   useEffect(() => {
@@ -112,125 +112,112 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   // Bulletproof session key initialization
   const initializeSessionKey = useCallback(async (): Promise<SessionKey | null> => {
-    if (!currentAccount || !suiClient) {
+    const userAddress = currentAccount?.address;
+    console.log(`[ChatContext::SessionKey] Attempting to initialize. User: ${userAddress}, Package: ${packageId}`);
+
+    if (!currentAccount || !suiClient || !userAddress) {
+      const errorMsg = `[ChatContext::SessionKey] Pre-requisites not met. Account: ${!!currentAccount}, SuiClient: ${!!suiClient}, UserAddress: ${userAddress}`;
+      console.error(errorMsg);
+      setIsInitializingKey(false);
+      setKeyInitializationError('User account or Sui client not available.');
       return null;
     }
     
-    const userAddress = currentAccount.address;
-    const cacheKey = `${userAddress}_${packageId}`;
-    
-    // Check global cache first
-    const cached = globalSessionKeyCache.get(cacheKey);
-    if (cached) {
-      if (cached.sessionKey) {
-        console.log('Using cached session key');
-        setSessionKey(cached.sessionKey);
-        setIsInitializingKey(false);
-        setKeyInitializationError(null);
-        return cached.sessionKey;
-      }
-      
-      if (cached.isInitializing && cached.initPromise) {
-        console.log('Session key initialization already in progress, waiting...');
-        setIsInitializingKey(true);
-        try {
-          const result = await cached.initPromise;
-          setSessionKey(result);
-          setIsInitializingKey(false);
-          setKeyInitializationError(result ? null : 'Failed to initialize session key');
-          return result;
-        } catch (err) {
-          setIsInitializingKey(false);
-          setKeyInitializationError('Failed to initialize session key');
-          return null;
-        }
-      }
+    // Global cache removed. If a session key exists in state, use it.
+    if (sessionKey) {
+      console.log(`[ChatContext::SessionKey] Using existing session key from state for user ${userAddress}.`);
+      setIsInitializingKey(false); // No longer initializing if we already have one
+      setKeyInitializationError(null);
+      return sessionKey;
+    }
+
+    // If a signature request is already pending from this hook, don't start another.
+    // This is the primary guard against double prompts.
+    if (isSignPersonalMessagePending) {
+      console.warn(`[ChatContext::SessionKey] signPersonalMessage is already pending for user ${userAddress}. Aborting new attempt to prevent double prompt.`);
+      setIsInitializingKey(true); // Still indicate we are in an initializing phase for UI
+      return null;
     }
     
-    // Start new initialization
-    console.log('Starting new session key initialization...');
+    // Secondary guard: if isInitializingKey is true (set by a previous call that hasn't completed but
+    // isSignPersonalMessagePending might be false if the actual signPersonalMessage call hasn't been made yet
+    // or if there's a slight delay in its state update), also abort.
+    if (isInitializingKey) {
+        console.warn(`[ChatContext::SessionKey] isInitializingKey is true (but signPersonalMessage not pending) for user ${userAddress}. Aborting new attempt.`);
+        return null; 
+    }
+    
+    console.log(`[ChatContext::SessionKey] No session key in state, not currently initializing, and signPersonalMessage not pending. Starting new initialization for user ${userAddress}.`);
     setIsInitializingKey(true);
     setKeyInitializationError(null);
     
-    const initPromise = new Promise<SessionKey | null>((resolve, reject) => {
-      try {
-        // Create a fresh session key
-        const newSessionKey = new SessionKey({
-          address: userAddress,
-          packageId,
-          ttlMin: 10, // 10 minutes TTL
-        });
-        
-        // Get the personal message to sign
-        const messageBytes = newSessionKey.getPersonalMessage();
-        
-        // Sign the message using the user's wallet
+    try {
+      console.log(`[ChatContext::SessionKey] Creating new SessionKey instance for user ${userAddress}.`);
+      const newSessionKey = new SessionKey({
+        address: userAddress,
+        packageId,
+        ttlMin: 10, // 10 minutes TTL
+      });
+      
+      console.log(`[ChatContext::SessionKey] Getting personal message bytes for user ${userAddress}.`);
+      const messageBytes = newSessionKey.getPersonalMessage();
+      
+      console.log(`[ChatContext::SessionKey] Prompting user for signature. Current isSignPersonalMessagePending: ${isSignPersonalMessagePending} for user ${userAddress}.`);
+      
+      // Directly await the signature result
+      const signatureResult = await new Promise<{ signature: string } | null>((resolve, reject) => {
         signPersonalMessage(
           { message: messageBytes },
           {
-            onSuccess: async (result) => {
-              try {
-                await newSessionKey.setPersonalMessageSignature(result.signature);
-                
-                // Update global cache
-                globalSessionKeyCache.set(cacheKey, {
-                  sessionKey: newSessionKey,
-                  isInitializing: false,
-                  initPromise: null
-                });
-                
-                console.log('Session key initialized successfully');
-                resolve(newSessionKey);
-              } catch (err) {
-                console.error('Error setting signature:', err);
-                globalSessionKeyCache.delete(cacheKey);
-                reject(new Error('Failed to complete key initialization'));
-              }
+            onSuccess: (sigResult) => {
+              console.log(`[ChatContext::SessionKey] signPersonalMessage onSuccess: Signature received for user ${userAddress}.`);
+              resolve(sigResult);
             },
             onError: (error) => {
-              console.error('User cancelled or error signing:', error);
-              globalSessionKeyCache.delete(cacheKey);
-              reject(new Error('Wallet signature required for secure chat'));
+              console.error(`[ChatContext::SessionKey] signPersonalMessage onError for user ${userAddress}:`, error);
+              reject(new Error(error.message || 'Wallet signature required or user cancelled.'));
             }
           }
         );
-      } catch (err) {
-        console.error('Error creating session key:', err);
-        globalSessionKeyCache.delete(cacheKey);
-        reject(new Error('Failed to initialize encryption key'));
+      });
+
+      if (!signatureResult) {
+        throw new Error('Signature process did not return a result.');
       }
-    });
-    
-    // Update global cache with initialization promise
-    globalSessionKeyCache.set(cacheKey, {
-      sessionKey: null,
-      isInitializing: true,
-      initPromise
-    });
-    
-    try {
-      const result = await initPromise;
-      setSessionKey(result);
+
+      console.log(`[ChatContext::SessionKey] Setting personal message signature on SessionKey instance for user ${userAddress}.`);
+      await newSessionKey.setPersonalMessageSignature(signatureResult.signature);
+      
+      console.log(`[ChatContext::SessionKey] SessionKey successfully initialized for user ${userAddress}.`);
+      setSessionKey(newSessionKey);
       setIsInitializingKey(false);
       setKeyInitializationError(null);
-      return result;
+      return newSessionKey;
+
     } catch (err: any) {
+      console.error(`[ChatContext::SessionKey] Error during session key initialization for user ${userAddress}:`, err);
       setIsInitializingKey(false);
-      setKeyInitializationError(err.message || 'Failed to initialize session key');
-      return null;
+      setKeyInitializationError(err.message || 'Failed to initialize session key.');
+      setSessionKey(null); // Ensure sessionKey is null on failure
+      return null; // Return null on error, rather than re-throwing, to match original simpler structure
     }
-  }, [currentAccount, suiClient, packageId, signPersonalMessage]);
+  }, [currentAccount, suiClient, packageId, signPersonalMessage, sessionKey, isInitializingKey, keyInitializationError, isSignPersonalMessagePending, resetSignPersonalMessage]);
 
   // Retry key initialization
   const retryKeyInitialization = useCallback(() => {
-    if (currentAccount) {
-      const cacheKey = `${currentAccount.address}_${packageId}`;
-      globalSessionKeyCache.delete(cacheKey);
-    }
+    console.log('[ChatContext::SessionKey] RetryKeyInitialization called.');
+    console.log(`[ChatContext::SessionKey] Before reset - isSignPersonalMessagePending: ${isSignPersonalMessagePending}`);
+    resetSignPersonalMessage();
+    console.log('[ChatContext::SessionKey] Called resetSignPersonalMessage().');
+
+    // Clear local session key state to force re-initialization
+    setSessionKey(null);
+    setIsInitializingKey(false); // Reset initialization lock
     setKeyInitializationError(null);
     setEphemeralKeyFetched(null); // Reset ephemeral key fetch status
-    initializeSessionKey();
-  }, [initializeSessionKey, currentAccount, packageId]);
+    console.log('[ChatContext::SessionKey] Triggering initializeSessionKey from retry.');
+    initializeSessionKey(); // This will now attempt a fresh initialization
+  }, [initializeSessionKey, resetSignPersonalMessage, isSignPersonalMessagePending]);
 
   // Helper function to find interaction
   const findInteraction = useCallback((advertisement: Advertisement, interactionId: number): { interaction: Interaction; userAddress: string } | null => {
@@ -248,47 +235,70 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     advertisementId: string, 
     interactionId: number
   ): Promise<Uint8Array | null> => {
+    const logPrefix = `[ChatContext::EphemeralGet Ad: ${advertisementId}, Int: ${interactionId}]`;
+    console.log(`${logPrefix} Attempting to get key.`);
+    let ephemeralKey: Uint8Array | null = null; // Re-declare ephemeralKey here
+
+    if (!sessionKey) {
+      console.error(`${logPrefix} SessionKey not available. Cannot proceed.`);
+      setError('Session key not initialized. Cannot fetch chat key.'); // User-facing error
+      return null;
+    }
+    if (!sealClient) {
+      console.error(`${logPrefix} SealClient not available. Cannot proceed.`);
+      setError('Seal client not initialized. Cannot fetch chat key.'); // User-facing error
+      return null;
+    }
+    
     // We need to get the client address first to check storage properly
     // Fetch the advertisement to get the interaction details
+    console.log(`${logPrefix} Fetching advertisement to find interaction and client address.`);
     const advertisement = await fetchAdvertisement(suiClient, advertisementId, packageId);
     if (!advertisement) {
+      console.error(`${logPrefix} Advertisement not found.`);
       throw new Error('Advertisement not found');
     }
     
     // Find the interaction to get the client address
     const result = findInteraction(advertisement, interactionId);
     if (!result) {
+      console.error(`${logPrefix} Interaction not found in advertisement.`);
       throw new Error('Interaction not found');
     }
     
     const { interaction, userAddress: clientAddress } = result;
+    console.log(`${logPrefix} Found interaction. Client address for key: ${clientAddress}`);
     
-    // First check if we have it in storage
-    let ephemeralKey = retrieveEphemeralKey(advertisementId, clientAddress, interactionId);
-    if (ephemeralKey) {
-      console.log(`Using cached ephemeral key for chat ${advertisementId}:${clientAddress}:${interactionId}`);
-      return ephemeralKey;
+    // retrieveEphemeralKey will now always return null due to utils.ts changes.
+    console.log(`${logPrefix} Ephemeral key storage disabled. Proceeding to fetch and decrypt for client ${clientAddress}.`);
+
+    console.log(`${logPrefix} State before decryption attempt: sessionKey valid: ${!!sessionKey}, sealClient valid: ${!!sealClient}`);
+
+    // Explicitly check sessionKey and sealClient again before Seal operations
+    if (!sessionKey) {
+      console.error(`${logPrefix} CRITICAL: sessionKey is null before Seal operations. This should not happen if signing succeeded.`);
+      setError('Session key was lost before decryption. Please retry.');
+      return null;
     }
-    
-    // If not, we need to fetch and decrypt it
-    if (!sealClient || !sessionKey) {
-      console.error('SealClient or SessionKey not available for key fetching');
+    if (!sealClient) {
+      console.error(`${logPrefix} CRITICAL: sealClient is null before Seal operations.`);
+      setError('Seal client is not available for decryption. Please retry.');
       return null;
     }
     
     try {
-      console.log(`Fetching ephemeral key for chat ${advertisementId}:${clientAddress}:${interactionId}`);
-      
-      if (!interaction.chatEphemeralKeyEncrypted) {
-        throw new Error('Encrypted key not found for this interaction');
+      console.log(`${logPrefix} Stage 1: Validating encrypted key from interaction object.`);
+      if (!interaction.chatEphemeralKeyEncrypted || interaction.chatEphemeralKeyEncrypted.length === 0) {
+        console.error(`${logPrefix} Stage 1 FAILED: Encrypted key MISSING or empty in interaction object for client ${clientAddress}.`);
+        throw new Error('Encrypted key not found for this interaction. Cannot decrypt messages.');
       }
-      
-      // Create transaction for access control
-      const tx = new Transaction();
       const encryptedKeyBytes = new Uint8Array(interaction.chatEphemeralKeyEncrypted);
+      console.log(`${logPrefix} Stage 1 SUCCESS: Encrypted key found (length: ${encryptedKeyBytes.length}).`);
       
+      console.log(`${logPrefix} Stage 2: Building seal_approve transaction for client ${clientAddress}.`);
+      const tx = new Transaction();
       // Create the ID for decryption (same as in contract)
-      const id = new Uint8Array([
+      const idForDecryption = new Uint8Array([
         ...fromHex(advertisementId),
         ...fromHex(clientAddress),
         ...bcs.u64().serialize(interactionId).toBytes()
@@ -297,7 +307,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       tx.moveCall({
         target: `${packageId}::marketplace::seal_approve`,
         arguments: [
-          tx.pure.vector('u8', Array.from(id)),
+          tx.pure.vector('u8', Array.from(idForDecryption)),
           tx.object(advertisementId),
           tx.pure.address(clientAddress),
           tx.pure.u64(interactionId), 
@@ -305,55 +315,40 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       });
       
       const txBytes = await tx.build({ client: suiClient, onlyTransactionKind: true });
+      console.log(`${logPrefix} Stage 2 SUCCESS: seal_approve transaction built.`);
       
-      // Decrypt the key - with retry mechanism
-      let retryCount = 0;
-      const maxRetries = 3;
-      
-      while (retryCount < maxRetries) {
-        try {
-          console.log(`Attempting to decrypt ephemeral key (attempt ${retryCount + 1}/${maxRetries})...`);
+      console.log(`${logPrefix} Stage 3: Calling utils.decryptEphemeralKey for client ${clientAddress}.`);
+      ephemeralKey = await decryptEphemeralKey(
+        encryptedKeyBytes,
+        sealClient, // Already confirmed not null
+        txBytes,
+        sessionKey, // Already confirmed not null
+        `${logPrefix} [UtilCall]`
+      );
+      console.log(`${logPrefix} Stage 3 ${ephemeralKey ? 'SUCCESS' : 'FAILURE (returned null)'}: utils.decryptEphemeralKey result: ${!!ephemeralKey}`);
           
-          ephemeralKey = await decryptEphemeralKey(
-            encryptedKeyBytes,
-            sealClient,
-            txBytes,
-            sessionKey
-          );
-          
-          if (ephemeralKey) {
-            console.log('Ephemeral key decryption successful');
-            // Store for future use with client address
-            storeEphemeralKey(advertisementId, clientAddress, interactionId, ephemeralKey);
-            return ephemeralKey;
-          } else {
-            console.error('Ephemeral key decryption returned null');
-            retryCount++;
-            
-            if (retryCount < maxRetries) {
-              // Wait before retrying
-              await new Promise(resolve => setTimeout(resolve, 1000));
-            }
-          }
-        } catch (err) {
-          console.error(`Error decrypting ephemeral key (attempt ${retryCount + 1}/${maxRetries}):`, err);
-          retryCount++;
-          
-          if (retryCount < maxRetries) {
-            // Wait before retrying
-            await new Promise(resolve => setTimeout(resolve, 1000));
-          } else {
-            throw err; // Re-throw the last error
-          }
-        }
+      if (ephemeralKey) {
+        console.log(`${logPrefix} Ephemeral key decryption successful. Storing (no-op) and returning key.`);
+        storeEphemeralKey(advertisementId, clientAddress, interactionId, ephemeralKey); // This is now a no-op but kept for logical flow
+        return ephemeralKey;
+      } else {
+        // This path should ideally not be reached if decryptEphemeralKey throws on failure.
+        // If it returns null, it's an unexpected state from decryptEphemeralKey.
+        console.error(`${logPrefix} CRITICAL: decryptEphemeralKey returned null instead of throwing an error on failure.`);
+        throw new Error('Failed to decrypt chat key (unexpected null result from decryption utility).');
       }
-      
-      throw new Error('Failed to decrypt chat key after multiple attempts');
-    } catch (err) {
-      console.error('Error fetching ephemeral key:', err);
-      throw new Error('Failed to decrypt chat key. You may not have access to this chat.');
+    } catch (err: any) {
+      console.error(`${logPrefix} CRITICAL: Error during ephemeral key processing (Stages 1-3) for client ${clientAddress}:`, err);
+      if (err.message && err.message.toLowerCase().includes('noaccesserror')) {
+        setError('No access to decrypt this chat key, or key server unavailable. Please check permissions or try again later.');
+      } else if (err.message && err.message.includes('Encrypted key not found')) {
+        setError(err.message); // Use the specific error message
+      } else {
+        setError(err.message || 'Failed to process chat key. Please ensure your session is active and try again.');
+      }
+      throw err; // Re-throw to be caught by calling function (e.g., attemptEphemeralKeyFetch)
     }
-  }, [sealClient, sessionKey, suiClient, packageId, findInteraction]);
+  }, [sealClient, sessionKey, suiClient, packageId, findInteraction, setError]);
 
   // Load messages for a chat - memoized to prevent excessive calls
   const loadMessages = useCallback(async (advertisementId: string, interactionId: number) => {
@@ -582,22 +577,22 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
   }, [currentAccount, suiClient, sessionKey, isInitializingKey, initializeSessionKey, currentAdvertisementId, currentInteractionId]);
 
-  // Clean up cache when account changes
-  useEffect(() => {
-    return () => {
-      // Clean up when component unmounts or account changes
-      if (currentAccount) {
-        const cacheKey = `${currentAccount.address}_${packageId}`;
-        const cached = globalSessionKeyCache.get(cacheKey);
-        if (cached && !cached.isInitializing) {
-          // Keep successful session keys, only clean up failed ones
-          if (!cached.sessionKey) {
-            globalSessionKeyCache.delete(cacheKey);
-          }
-        }
-      }
-    };
-  }, [currentAccount?.address, packageId]);
+  // Clean up cache when account changes - Global cache removed, so this is no longer needed.
+  // useEffect(() => {
+  //   return () => {
+  //     // Clean up when component unmounts or account changes
+  //     if (currentAccount) {
+  //       const cacheKey = `${currentAccount.address}_${packageId}`;
+  //       // const cached = globalSessionKeyCache.get(cacheKey);
+  //       // if (cached && !cached.isInitializing) {
+  //       //   // Keep successful session keys, only clean up failed ones
+  //       //   if (!cached.sessionKey) {
+  //       //     globalSessionKeyCache.delete(cacheKey);
+  //       //   }
+  //       // }
+  //     }
+  //   };
+  // }, [currentAccount?.address, packageId]);
 
   // Send text message
   const sendMessage = useCallback(async (text: string) => {
