@@ -1,4 +1,5 @@
-# Trust Marketplace
+# [Trust Marketplace](https://trust-market.netlify.app/)
+[view demo](https://trust-market.netlify.app/)
 
 [Trust Marketplace](https://trust-market.netlify.app/) isn't just another decentralized gig platform—it's a fundamental rethinking of trust in digital interactions. Imagine a universe where trust isn't governed by centralized institutions, but emerges directly from cryptographic and blockchain-driven mechanisms. This is precisely what Trust Marketplace delivers.
 
