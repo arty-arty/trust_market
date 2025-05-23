@@ -324,7 +324,7 @@ entry fun mark_completed_entry(
 public fun release_payment(
     advertisement: &mut Advertisement,
     interaction_id: u64, // Specify which interaction to release payment for
-    ctx: &TxContext
+    ctx: &mut TxContext
 ) {
     let sender = ctx.sender();
     
@@ -348,6 +348,12 @@ public fun release_payment(
     
     // Update state to BUYER_APPROVED
     interaction.state = INTERACTION_BUYER_APPROVED;
+
+    //Now take the escrow and send the funds to the advertisement creator
+    let advertisement_creator = advertisement.creator;
+    let amount = coin::value(&interaction.payment);
+    assert!(amount > 0, EInvalidAmount);
+    sui::pay::split_and_transfer(&mut interaction.payment, amount, advertisement_creator, ctx)
 }
 
 // Convenience function to release payment
