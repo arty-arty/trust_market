@@ -34,7 +34,7 @@ Built atop the Sui blockchain, our peer-to-peer gig protocol integrates on-chain
 
 ### 2. Secure Communication
 
-- 💬 **Chat:** All interactions—messages and files—are client-side encrypted using AES-GCM and transmitted via blockchain state references. Files are stored on [Walrus](frontend/src/utils.ts), decentralized storage, linked to gig interactions.
+- 💬 **Chat:** All interactions—messages and files—are client-side encrypted using AES-GCM and transmitted via blockchain state references. Files are stored on [Walrus](frontend/src/utils.ts), decentralized storage, linked to gig interactions. Metadata is inside the binary blob file, everything encrypted together. Upon decryption
 - 🔒 **Privacy:** Cryptographic acess control rules, written in the ([`seal_approve`](move/sources/marketplace.move)) of the smart-contract ensure that only gig participants can decrypt messages. Platform operators remain completely blind unless explicitly granted access during disputes.
 
 ### 3. Escrow & Dispute Resolution
