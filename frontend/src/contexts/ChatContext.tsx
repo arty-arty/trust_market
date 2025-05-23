@@ -95,6 +95,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [isFileUploading, setIsFileUploading] = useState(false);
   const [uploadingFileIds, setUploadingFileIds] = useState<string[]>([]);
   
+  // Track if we've attempted to fetch ephemeral key for current chat
+  const [ephemeralKeyFetched, setEphemeralKeyFetched] = useState<string | null>(null);
+  
   // Initialize SealClient
   useEffect(() => {
     if (currentAccount && suiClient) {
@@ -225,6 +228,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       globalSessionKeyCache.delete(cacheKey);
     }
     setKeyInitializationError(null);
+    setEphemeralKeyFetched(null); // Reset ephemeral key fetch status
     initializeSessionKey();
   }, [initializeSessionKey, currentAccount, packageId]);
 
@@ -244,8 +248,23 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     advertisementId: string, 
     interactionId: number
   ): Promise<Uint8Array | null> => {
+    // We need to get the client address first to check storage properly
+    // Fetch the advertisement to get the interaction details
+    const advertisement = await fetchAdvertisement(suiClient, advertisementId, packageId);
+    if (!advertisement) {
+      throw new Error('Advertisement not found');
+    }
+    
+    // Find the interaction to get the client address
+    const result = findInteraction(advertisement, interactionId);
+    if (!result) {
+      throw new Error('Interaction not found');
+    }
+    
+    const { interaction, userAddress: clientAddress } = result;
+    
     // First check if we have it in storage
-    let ephemeralKey = retrieveEphemeralKey(advertisementId, interactionId);
+    let ephemeralKey = retrieveEphemeralKey(advertisementId, clientAddress, interactionId);
     if (ephemeralKey) {
       return ephemeralKey;
     }
@@ -257,21 +276,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
     
     try {
-      console.log(`Fetching ephemeral key for chat ${advertisementId}:${interactionId}`);
-      
-      // Fetch the advertisement to get the interaction
-      const advertisement = await fetchAdvertisement(suiClient, advertisementId, packageId);
-      if (!advertisement) {
-        throw new Error('Advertisement not found');
-      }
-      
-      // Find the interaction with the encrypted key
-      const result = findInteraction(advertisement, interactionId);
-      if (!result) {
-        throw new Error('Interaction not found');
-      }
-      
-      const { interaction, userAddress: interactionUser } = result;
+      console.log(`Fetching ephemeral key for chat ${advertisementId}:${clientAddress}:${interactionId}`);
       
       if (!interaction.chatEphemeralKeyEncrypted) {
         throw new Error('Encrypted key not found for this interaction');
@@ -284,7 +289,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       // Create the ID for decryption (same as in contract)
       const id = new Uint8Array([
         ...fromHex(advertisementId),
-        ...fromHex(interactionUser),
+        ...fromHex(clientAddress),
         ...bcs.u64().serialize(interactionId).toBytes()
       ]);
       
@@ -293,7 +298,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         arguments: [
           tx.pure.vector('u8', Array.from(id)),
           tx.object(advertisementId),
-          tx.pure.address(interactionUser),
+          tx.pure.address(clientAddress),
           tx.pure.u64(interactionId), 
         ],
       });
@@ -308,8 +313,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         sessionKey
       );
       
-      // Store for future use
-      storeEphemeralKey(advertisementId, interactionId, ephemeralKey);
+      // Store for future use with client address
+      storeEphemeralKey(advertisementId, clientAddress, interactionId, ephemeralKey);
       return ephemeralKey;
       
     } catch (err) {
@@ -435,6 +440,67 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
   }, [suiClient, currentAccount, packageId, getEphemeralKey, findInteraction, uploadingFileIds]);
 
+  // BULLETPROOF FIX: Auto-fetch ephemeral key after session key is ready
+  useEffect(() => {
+    const attemptEphemeralKeyFetch = async () => {
+      // Only proceed if we have all required components and haven't already fetched for this chat
+      if (!sessionKey || !currentAdvertisementId || currentInteractionId === null || !sealClient) {
+        return;
+      }
+      
+      const chatKey = `${currentAdvertisementId}_${currentInteractionId}`;
+      
+      // Skip if we've already attempted to fetch for this chat
+      if (ephemeralKeyFetched === chatKey) {
+        return;
+      }
+      
+      // We need to determine the client address for this interaction
+      // First fetch the advertisement to get the interaction details
+      try {
+        const advertisement = await fetchAdvertisement(suiClient, currentAdvertisementId, packageId);
+        if (!advertisement) {
+          return;
+        }
+        
+        // Find the interaction to get the client address
+        const result = findInteraction(advertisement, currentInteractionId);
+        if (!result) {
+          return;
+        }
+        
+        const clientAddress = result.userAddress;
+        
+        // Skip if we already have the ephemeral key in storage
+        const existingKey = retrieveEphemeralKey(currentAdvertisementId, clientAddress, currentInteractionId);
+        if (existingKey) {
+          setEphemeralKeyFetched(chatKey);
+          return;
+        }
+      } catch (err) {
+        console.error('Error checking existing ephemeral key:', err);
+        return;
+      }
+      
+      console.log('Auto-fetching ephemeral key after session key initialization...');
+      setEphemeralKeyFetched(chatKey);
+      
+      try {
+        // Attempt to fetch the ephemeral key
+        await getEphemeralKey(currentAdvertisementId, currentInteractionId);
+        console.log('Ephemeral key auto-fetch successful');
+        
+        // Now load messages since we have the key
+        loadMessages(currentAdvertisementId, currentInteractionId);
+      } catch (err) {
+        console.error('Auto-fetch ephemeral key failed:', err);
+        // Don't set error here as it will be handled when user tries to load messages
+      }
+    };
+    
+    attemptEphemeralKeyFetch();
+  }, [sessionKey, currentAdvertisementId, currentInteractionId, sealClient, ephemeralKeyFetched, getEphemeralKey, loadMessages, suiClient, packageId, findInteraction]);
+
   // Set up polling for message updates - fixed to prevent spam
   useEffect(() => {
     // Clear any existing interval
@@ -448,8 +514,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       return;
     }
     
-    // Load messages immediately
-    loadMessages(currentAdvertisementId, currentInteractionId);
+    // Load messages immediately only if we haven't already loaded them via auto-fetch
+    const chatKey = `${currentAdvertisementId}_${currentInteractionId}`;
+    if (ephemeralKeyFetched !== chatKey) {
+      loadMessages(currentAdvertisementId, currentInteractionId);
+    }
     
     // Set up polling every 3 seconds
     pollingIntervalRef.current = setInterval(() => {
@@ -467,13 +536,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         pollingIntervalRef.current = null;
       }
     };
-  }, [currentAdvertisementId, currentInteractionId, sessionKey, isFileUploading, uploadingFileIds]);
+  }, [currentAdvertisementId, currentInteractionId, sessionKey, isFileUploading, uploadingFileIds, ephemeralKeyFetched, loadMessages]);
 
   // Set current chat
   const setCurrentChat = useCallback((advertisementId: string | null, interactionId: number | null) => {
     if (advertisementId !== currentAdvertisementId || interactionId !== currentInteractionId) {
       setMessages([]);
       setError(null);
+      setEphemeralKeyFetched(null); // Reset ephemeral key fetch status for new chat
     }
     setCurrentAdvertisementId(advertisementId);
     setCurrentInteractionId(interactionId);
