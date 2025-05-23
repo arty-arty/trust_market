@@ -304,17 +304,19 @@ export const decryptFileData = async (
 
 /**
  * Store an ephemeral key in session storage
- * Simplified to use only advertisementId and interactionId
+ * Now includes client address to make it unique per client-freelancer pair
  * @param advertisementId The advertisement ID
+ * @param clientAddress The client's address (the user who joined the advertisement)
  * @param interactionId The unique ID of the interaction
  * @param key The key to store
  */
 export const storeEphemeralKey = (
   advertisementId: string,
+  clientAddress: string,
   interactionId: number,
   key: Uint8Array
 ): void => {
-  const keyId = `chat_key_${advertisementId}_${interactionId}`;
+  const keyId = `chat_key_${advertisementId}_${clientAddress}_${interactionId}`;
   const keyBase64 = btoa(String.fromCharCode(...key));
   sessionStorage.setItem(keyId, keyBase64);
   console.log(`Stored ephemeral key for chat: ${keyId}`);
@@ -322,16 +324,18 @@ export const storeEphemeralKey = (
 
 /**
  * Retrieve an ephemeral key from session storage
- * Simplified to use only advertisementId and interactionId
+ * Now includes client address to make it unique per client-freelancer pair
  * @param advertisementId The advertisement ID
+ * @param clientAddress The client's address (the user who joined the advertisement)
  * @param interactionId The unique ID of the interaction
  * @returns The key or null if not found
  */
 export const retrieveEphemeralKey = (
   advertisementId: string,
+  clientAddress: string,
   interactionId: number
 ): Uint8Array | null => {
-  const keyId = `chat_key_${advertisementId}_${interactionId}`;
+  const keyId = `chat_key_${advertisementId}_${clientAddress}_${interactionId}`;
   const keyBase64 = sessionStorage.getItem(keyId);
   
   if (!keyBase64) {
@@ -349,13 +353,15 @@ export const retrieveEphemeralKey = (
 /**
  * Clear an ephemeral key from session storage
  * @param advertisementId The advertisement ID
+ * @param clientAddress The client's address (the user who joined the advertisement)
  * @param interactionId The unique ID of the interaction
  */
 export const clearEphemeralKey = (
   advertisementId: string,
+  clientAddress: string,
   interactionId: number
 ): void => {
-  const keyId = `chat_key_${advertisementId}_${interactionId}`;
+  const keyId = `chat_key_${advertisementId}_${clientAddress}_${interactionId}`;
   sessionStorage.removeItem(keyId);
   console.log(`Cleared ephemeral key for chat: ${keyId}`);
 };
