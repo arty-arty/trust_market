@@ -39,6 +39,13 @@ module trust::marketplace {
     const RESOLUTION_ADMIN_SELLER: u8 = 2;
     const RESOLUTION_ADMIN_SPLIT: u8 = 3;
 
+/// Registry to keep track of all statistics and reputation of users
+public struct StatsRegistry has key {
+    id: UID,
+    advertisements: vector<ID>, // Vector of advertisement IDs
+    // In production, a smart table based indexing would be used to avoid overflow
+}
+
 /// Registry to keep track of all advertisements
 public struct AdvertisementRegistry has key {
     id: UID,
@@ -187,23 +194,13 @@ public fun create_advertisement(
         transfer::transfer(create_advertisement(registry, title, description, amount, c, ctx), ctx.sender());
     }
 
-    // Convenience function to join an advertisement
-    entry fun join_advertisement_entry(
-        advertisement: &mut Advertisement,
-        payment: Coin<SUI>,
-        chat_ephemeral_key_encrypted: vector<u8>,
-        c: &Clock,
-        ctx: &mut TxContext
-    ) {
-        join_advertisement(payment, advertisement, chat_ephemeral_key_encrypted, c, ctx);
-    }
-
 /// Join an advertisement and lock funds in escrow
-public fun join_advertisement(
-    payment: Coin<SUI>,
+entry fun join_advertisement_entry(
     advertisement: &mut Advertisement,
+    payment: Coin<SUI>,
     chat_ephemeral_key_encrypted: vector<u8>,
     c: &Clock,
+    r: &Random,
     ctx: &mut TxContext
 ) {
     let sender = ctx.sender();
@@ -226,7 +223,7 @@ public fun join_advertisement(
     };
     
     // Select a random admin
-    let assigned_admin = select_random_admin();
+    let assigned_admin = select_random_admin(r, ctx);
     
     // Create a new interaction with embedded payment
     let interaction = Interaction {
@@ -266,19 +263,22 @@ fun get_next_interaction_id(advertisement: &Advertisement, user: address): u64 {
     vector::length(&profile.interactions)
 }
 
-    /// Select a random admin
-    /// Note: This is a simplified implementation. In a real-world scenario,
-    /// we would use Sui's randomness API to select a truly random admin.
-    fun select_random_admin(): address {
-        // PLACEHOLDER IMPLEMENTATION
-        // In a real implementation, we would:
-        // 1. Use the Random object from sui::random
-        // 2. Create a RandomGenerator with random::new_generator(r, ctx)
-        // 3. Generate a random index with random::generate_u64_in_range
-        // 4. Use that index to select an admin from the admin_list
+    /// Select a random admin from a hardcoded list of example addresses
+    /// Random has a reserved address 0x8. See random.move for the Move APIs for accessing randomness on Sui.
+    fun select_random_admin(r: &Random, ctx: &mut TxContext): address {
+        let mut generator = random::new_generator(r, ctx);
+        let mut admin_list: vector<address> = vector::empty();
         
-        // For now, just return a placeholder admin address
-        @0x1
+        // Add hardcoded admin addresses
+        vector::push_back(&mut admin_list, @0x1); // Example address
+        vector::push_back(&mut admin_list, @0x2); // Example address
+        
+        // Check if the admin list is empty, might be useful later when dynamic list will be used
+        assert!(!vector::is_empty(&admin_list), EEmptyAdminList);
+        
+        // Select a random admin from the list
+        let random_index = random::generate_u8_in_range(&mut generator, 0, (vector::length(&admin_list) - 1) as u8);
+        *vector::borrow(&admin_list, random_index as u64)
     }
 
 /// Mark a transaction as completed (by seller)
