@@ -3,7 +3,7 @@
 Trust Marketplace ([view pitch](https://www.youtube.com/watch?v=J3zUxvo8ZBs)) isn't just another gig platform—it's a rethinking of trust in digital conversations ([view webapp](https://trust-market.netlify.app/)). As if you Chat with strangers, hire them, and a Guardian Angel, called Trust, makes sure you're never scammed for huge $$$s. 
 Is this impossible? Who's the Angel? How do they do their tough job? 
 
-Often - monetary Trust - this strong - is governed by centralized institutions, but imagine it emerges directly from cryptographic and blockchain-driven mechanisms. This is precisely what Trust Marketplace brings to the table.
+Often - monetary Trust - this strong - is governed by centralized institutions (e.g. Ebay for goods or Bybit for p2p cryptocurrency). But, imagine the trust emerged directly from cryptographic and blockchain-driven mechanisms. This is precisely what Trust Marketplace brings to the table.
 
 Built atop the Sui blockchain, our peer-to-peer gig protocol integrates on-chain escrow, cryptographically enforced privacy (via AES-GCM encryption and [Seal protocol](https://github.com/avalias/trust_market/blob/e506eb338b55777a473eaed5bda024a613b596b3/frontend/src/utils.ts#L79)), a Chat with decentralized file storage ([Walrus](https://github.com/avalias/trust_market/blob/e506eb338b55777a473eaed5bda024a613b596b3/frontend/src/utils.ts#L564)), and an on-chain reputation system (to be finished). The protocol doesn't rely on conventional assumptions —everything is algorithmically provable and enforced by [smart contract state](move/sources/marketplace.move) and cryptographic primitives.
 
