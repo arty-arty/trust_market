@@ -1,6 +1,6 @@
 # [Trust Marketplace](https://trust-market.netlify.app/)
 
-Trust Marketplace ([view demo](https://trust-market.netlify.app/)) isn't just another decentralized gig platform—it's a fundamental rethinking of trust in digital interactions. Imagine a universe where trust isn't governed by centralized institutions, but emerges directly from cryptographic and blockchain-driven mechanisms. This is precisely what Trust Marketplace delivers.
+Trust Marketplace ([view demo](https://trust-market.netlify.app/)) isn't just another decentralized gig platform—it's a rethinking of trust in digital interactions. Imagine earth where trust isn't governed by centralized institutions, but emerges directly from cryptographic and blockchain-driven mechanisms. This is precisely what Trust Marketplace delivers.
 
 Built atop the Sui blockchain, this peer-to-peer gig protocol integrates on-chain escrow, cryptographically enforced privacy (via AES-GCM encryption and [Seal protocol](frontend/src/utils.ts)), decentralized file storage ([Walrus](frontend/src/utils.ts)), and an on-chain reputation system. The protocol doesn't rely on conventional assumptions—everything is mathematically provable and enforced by [smart contract state](move/sources/marketplace.move) and cryptographic primitives.
 
