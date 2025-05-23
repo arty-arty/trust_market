@@ -1,4 +1,11 @@
 import { SealClient, SessionKey, NoAccessError, EncryptedObject } from '@mysten/seal';
+
+// Add global type declaration for our ephemeral key cache
+declare global {
+  interface Window {
+    _ephemeralKeyCache?: Record<string, Uint8Array>;
+  }
+}
 import { bcs } from '@mysten/sui/bcs';
 import { SuiClient } from '@mysten/sui/client';
 import { Transaction } from '@mysten/sui/transactions';
@@ -327,8 +334,7 @@ export const decryptFileData = async (
 };
 
 /**
- * Store an ephemeral key in session storage
- * Now includes client address to make it unique per client-freelancer pair
+ * Store an ephemeral key in multiple storage mechanisms for redundancy
  * @param advertisementId The advertisement ID
  * @param clientAddress The client's address (the user who joined the advertisement)
  * @param interactionId The unique ID of the interaction
@@ -348,23 +354,47 @@ export const storeEphemeralKey = (
   const keyId = `chat_key_${advertisementId}_${clientAddress}_${interactionId}`;
   const keyBase64 = btoa(String.fromCharCode(...key));
   
+  // Store in multiple places for redundancy
   try {
+    // 1. Store in sessionStorage (primary)
     sessionStorage.setItem(keyId, keyBase64);
-    console.log(`Stored ephemeral key for chat: ${keyId}`);
+    
+    // 2. Store in localStorage (backup)
+    localStorage.setItem(keyId, keyBase64);
+    
+    // 3. Store in memory cache (for immediate access)
+    if (!window._ephemeralKeyCache) {
+      window._ephemeralKeyCache = {};
+    }
+    window._ephemeralKeyCache[keyId] = key;
+    
+    console.log(`Stored ephemeral key for chat: ${keyId} (length: ${key.length})`);
     
     // Verify storage was successful
-    const storedKey = sessionStorage.getItem(keyId);
-    if (!storedKey) {
-      console.error('Failed to verify stored ephemeral key');
+    const sessionStorageKey = sessionStorage.getItem(keyId);
+    const localStorageKey = localStorage.getItem(keyId);
+    
+    if (!sessionStorageKey && !localStorageKey) {
+      console.error('Failed to verify stored ephemeral key in any storage');
     }
   } catch (err) {
     console.error('Error storing ephemeral key:', err);
+    
+    // Last resort - try to store in a global variable if storage APIs fail
+    try {
+      if (!window._ephemeralKeyCache) {
+        window._ephemeralKeyCache = {};
+      }
+      window._ephemeralKeyCache[keyId] = key;
+      console.log('Stored ephemeral key in memory cache only');
+    } catch (memErr) {
+      console.error('Failed to store ephemeral key anywhere:', memErr);
+    }
   }
 };
 
 /**
- * Retrieve an ephemeral key from session storage
- * Now includes client address to make it unique per client-freelancer pair
+ * Retrieve an ephemeral key from multiple storage mechanisms
  * @param advertisementId The advertisement ID
  * @param clientAddress The client's address (the user who joined the advertisement)
  * @param interactionId The unique ID of the interaction
@@ -375,31 +405,64 @@ export const retrieveEphemeralKey = (
   clientAddress: string,
   interactionId: number
 ): Uint8Array | null => {
+  const keyId = `chat_key_${advertisementId}_${clientAddress}_${interactionId}`;
+  
   try {
-    const keyId = `chat_key_${advertisementId}_${clientAddress}_${interactionId}`;
-    const keyBase64 = sessionStorage.getItem(keyId);
-    
-    if (!keyBase64) {
-      console.log(`No ephemeral key found for chat: ${keyId}`);
-      return null;
+    // 1. Try memory cache first (fastest)
+    if (window._ephemeralKeyCache && window._ephemeralKeyCache[keyId]) {
+      const cachedKey = window._ephemeralKeyCache[keyId];
+      if (cachedKey && cachedKey.length > 0) {
+        console.log(`Retrieved ephemeral key from memory cache: ${keyId} (length: ${cachedKey.length})`);
+        return cachedKey;
+      }
     }
     
-    // Convert from base64 to Uint8Array
-    const key = Uint8Array.from(
-      atob(keyBase64),
-      c => c.charCodeAt(0)
-    );
-    
-    // Validate key
-    if (!key || key.length === 0) {
-      console.error(`Retrieved invalid ephemeral key for chat: ${keyId}`);
-      // Remove invalid key
-      sessionStorage.removeItem(keyId);
-      return null;
+    // 2. Try sessionStorage (primary storage)
+    const sessionKeyBase64 = sessionStorage.getItem(keyId);
+    if (sessionKeyBase64) {
+      try {
+        const key = Uint8Array.from(atob(sessionKeyBase64), c => c.charCodeAt(0));
+        if (key && key.length > 0) {
+          console.log(`Retrieved ephemeral key from sessionStorage: ${keyId} (length: ${key.length})`);
+          
+          // Update memory cache
+          if (!window._ephemeralKeyCache) {
+            window._ephemeralKeyCache = {};
+          }
+          window._ephemeralKeyCache[keyId] = key;
+          
+          return key;
+        }
+      } catch (convErr) {
+        console.error('Error converting sessionStorage key:', convErr);
+      }
     }
     
-    console.log(`Retrieved ephemeral key for chat: ${keyId} (length: ${key.length})`);
-    return key;
+    // 3. Try localStorage (backup storage)
+    const localKeyBase64 = localStorage.getItem(keyId);
+    if (localKeyBase64) {
+      try {
+        const key = Uint8Array.from(atob(localKeyBase64), c => c.charCodeAt(0));
+        if (key && key.length > 0) {
+          console.log(`Retrieved ephemeral key from localStorage: ${keyId} (length: ${key.length})`);
+          
+          // Restore to sessionStorage and memory cache
+          sessionStorage.setItem(keyId, localKeyBase64);
+          
+          if (!window._ephemeralKeyCache) {
+            window._ephemeralKeyCache = {};
+          }
+          window._ephemeralKeyCache[keyId] = key;
+          
+          return key;
+        }
+      } catch (convErr) {
+        console.error('Error converting localStorage key:', convErr);
+      }
+    }
+    
+    console.log(`No ephemeral key found for chat: ${keyId} in any storage`);
+    return null;
   } catch (err) {
     console.error('Error retrieving ephemeral key:', err);
     return null;
@@ -407,7 +470,7 @@ export const retrieveEphemeralKey = (
 };
 
 /**
- * Clear an ephemeral key from session storage
+ * Clear an ephemeral key from all storage mechanisms
  * @param advertisementId The advertisement ID
  * @param clientAddress The client's address (the user who joined the advertisement)
  * @param interactionId The unique ID of the interaction
@@ -418,23 +481,79 @@ export const clearEphemeralKey = (
   interactionId: number
 ): void => {
   const keyId = `chat_key_${advertisementId}_${clientAddress}_${interactionId}`;
-  sessionStorage.removeItem(keyId);
-  console.log(`Cleared ephemeral key for chat: ${keyId}`);
+  
+  // Clear from all storage mechanisms
+  try {
+    sessionStorage.removeItem(keyId);
+  } catch (e) {
+    console.warn('Failed to clear from sessionStorage:', e);
+  }
+  
+  try {
+    localStorage.removeItem(keyId);
+  } catch (e) {
+    console.warn('Failed to clear from localStorage:', e);
+  }
+  
+  // Clear from memory cache
+  if (window._ephemeralKeyCache && keyId in window._ephemeralKeyCache) {
+    delete window._ephemeralKeyCache[keyId];
+  }
+  
+  console.log(`Cleared ephemeral key for chat: ${keyId} from all storage mechanisms`);
 };
 
 /**
- * Clear all ephemeral keys from session storage
+ * Clear all ephemeral keys from all storage mechanisms
  */
 export const clearAllEphemeralKeys = (): void => {
+  // Collect keys from sessionStorage
   const keysToRemove: string[] = [];
-  for (let i = 0; i < sessionStorage.length; i++) {
-    const key = sessionStorage.key(i);
-    if (key && key.startsWith('chat_key_')) {
-      keysToRemove.push(key);
+  
+  try {
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const key = sessionStorage.key(i);
+      if (key && key.startsWith('chat_key_')) {
+        keysToRemove.push(key);
+      }
     }
+  } catch (e) {
+    console.warn('Error accessing sessionStorage:', e);
   }
-  keysToRemove.forEach(key => sessionStorage.removeItem(key));
-  console.log(`Cleared ${keysToRemove.length} ephemeral keys`);
+  
+  // Add keys from localStorage
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('chat_key_') && !keysToRemove.includes(key)) {
+        keysToRemove.push(key);
+      }
+    }
+  } catch (e) {
+    console.warn('Error accessing localStorage:', e);
+  }
+  
+  // Clear all collected keys
+  keysToRemove.forEach(key => {
+    try {
+      sessionStorage.removeItem(key);
+    } catch (e) {
+      console.warn(`Failed to remove ${key} from sessionStorage:`, e);
+    }
+    
+    try {
+      localStorage.removeItem(key);
+    } catch (e) {
+      console.warn(`Failed to remove ${key} from localStorage:`, e);
+    }
+  });
+  
+  // Clear memory cache
+  if (window._ephemeralKeyCache) {
+    window._ephemeralKeyCache = {};
+  }
+  
+  console.log(`Cleared ${keysToRemove.length} ephemeral keys from all storage mechanisms`);
 };
 
 // Disclaimer Some Functions are inspired by Mysten's Seal Example :)
