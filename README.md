@@ -28,24 +28,24 @@ Built atop the Sui blockchain, our peer-to-peer gig protocol integrates on-chain
 
 ### 1. Creating & Joining Gigs
 
-- 📝 **Create:** A seller creates an advertisement directly on-chain ([`create_advertisement_entry`](move/sources/marketplace.move)) with transparent pricing and clear deliverables.
+- 📝 **Create:** A seller creates an advertisement directly on-chain ([`create_advertisement_entry`](https://github.com/avalias/trust_market/blob/e506eb338b55777a473eaed5bda024a613b596b3/move/sources/marketplace.move#L161)) with transparent pricing and clear deliverables.
 - 🤝 **Join:** A buyer joins by locking payment securely into a smart contract escrow. An ephemeral AES-GCM key is generated in-browser and encrypted using [Seal's threshold cryptography](frontend/src/utils.ts).
 - 🔑 **Key Exchange:** Keys are encrypted and stored on-chain, strictly accessible only by transaction participants.
 
 ### 2. Secure Communication
 
-- 💬 **Chat:** All interactions—messages and files—are client-side encrypted using [AES-GCM](https://github.com/avalias/trust_market/blob/e506eb338b55777a473eaed5bda024a613b596b3/frontend/src/utils.ts#L278) and transmitted via blockchain state references. Files are stored on [Walrus](frontend/src/utils.ts), decentralized storage, [linked to gig interactions](https://github.com/avalias/trust_market/blob/e506eb338b55777a473eaed5bda024a613b596b3/move/sources/marketplace.move#L420). Metadata is inside the binary blob file, everything encrypted together. Upon decryption
-- 🔒 **Privacy:** Cryptographic acess control rules, written in the ([`seal_approve`](move/sources/marketplace.move)) of the smart-contract ensure that only gig participants can decrypt messages. Platform operators remain completely blind unless explicitly granted access during disputes.
+- 💬 **Chat:** All interactions—messages and files—are client-side encrypted using [AES-GCM](https://github.com/avalias/trust_market/blob/e506eb338b55777a473eaed5bda024a613b596b3/frontend/src/utils.ts#L278) and transmitted via blockchain state references. Files are stored on [Walrus](https://github.com/avalias/trust_market/blob/e506eb338b55777a473eaed5bda024a613b596b3/frontend/src/utils.ts#L240), with metadata   inside the binary blob file, everything encrypted together. The decentralized storage blobId is [linked to gig interactions](https://github.com/avalias/trust_market/blob/e506eb338b55777a473eaed5bda024a613b596b3/move/sources/marketplace.move#L420). Upon decryption
+- 🔒 **Privacy:** Cryptographic acess control rules, written in the ([`seal_approve`](https://github.com/avalias/trust_market/blob/e506eb338b55777a473eaed5bda024a613b596b3/move/sources/marketplace.move#L632)) of the smart-contract ensure that only gig participants can decrypt messages. Platform operators remain completely blind unless explicitly granted access during disputes.
 
 ### 3. Escrow & Dispute Resolution
 
-- ✅ **Completion:** The seller marks the gig complete; the buyer approves and releases payment from escrow ([`mark_completed_entry`, `release_payment_entry`](move/sources/marketplace.move)).
+- ✅ **Completion:** The seller marks the gig complete; the buyer approves and releases payment from escrow ([`mark_completed_entry`, `release_payment_entry`](https://github.com/avalias/trust_market/blob/e506eb338b55777a473eaed5bda024a613b596b3/move/sources/marketplace.move#L324)).
 - ⚡ **Disputes:** Either party can invoke a dispute. A decentralized, on-chain mechanism randomly selects an admin to arbitrate ([`select_random_admin`](https://github.com/avalias/trust_market/blob/e506eb338b55777a473eaed5bda024a613b596b3/move/sources/marketplace.move#L226)).
 - 🕵️ **Admin Oversight:** Admins gain cryptographically verifiable access only to disputed interactions, controlled by smart contract logic ([`seal_approve`](https://github.com/avalias/trust_market/blob/e506eb338b55777a473eaed5bda024a613b596b3/move/sources/marketplace.move#L632)).
 
 ### 4. Reputation System
 
-- 🌟 **Reviews:** Post-interaction ratings, reviews, deal volume, and dispute statistics accumulate transparently on-chain, forming immutable and composable reputation profiles ([`UserReputation`](move/sources/marketplace.move)).
+- 🌟 **Reviews:** Under development. Post-interaction ratings, reviews, deal volume, and dispute statistics accumulate transparently on-chain, forming immutable and composable reputation profiles ([`UserReputation`](move/sources/marketplace.move)).
 
 ---
 
@@ -101,7 +101,7 @@ graph TD
 - **[InteractionsList.tsx](frontend/src/InteractionsList.tsx):** Users can monitor all deals, filter by status, and engage seamlessly with secure chat.
 - **[ChatWrapper.tsx](frontend/src/components/ChatWrapper.tsx):** Real-time secure communications, robust session management, integrated directly into the gig workflow.
 
-> **Note:** Notification center and advanced admin management UI are under development.
+> **Note:** Notification center, advanced admin management UI, and reputation system are under development.
 
 ---
 
@@ -112,23 +112,15 @@ graph TD
 - **Composable UI Components:**  
   Modular React components simplify development and encourage ecosystem integration.
 - **Efficient Deployment Pipeline:**  
-  Automated scripts ([`deploy.js`](move/deploy.js)) synchronize frontend and smart contract deployments seamlessly.
-
----
-
-## Deployment & Configuration
-
-- **Streamlined Automation:**  
-  Scripts automate compilation, deployment, and initialization, maintaining clear separation between Devnet, Testnet, and Mainnet ([`constants.ts`](frontend/src/constants.ts)).
-- **Transparent Configuration:**  
-  Cryptographic operations always explicitly require wallet signatures—nothing is implicitly trusted.
+  Automated scripts ([`deploy.js`](move/deploy.js)) synchronize frontend and smart contract deployments.
+  Clear separation between Devnet, Testnet, and Mainnet ([`constants.ts`](frontend/src/constants.ts)) is maintained.
 
 ---
 
 ## Research & Roadmap
 
 - **Decentralized Admin Registry:**  
-  Future governance includes DAO-driven admin selection (voting of governors to select best people or to banish an evil admin ;)
+  Future governance includes DAO-driven admin selection (voting of governors to select best people or to banish an evil admin;))
 - **Zero-Knowledge Integration:**  
   zkLogin-based reputation verification will tie decentralized trust directly to provable social identities (Google Account e.t.c.).
 - **Composable Reputation:**  
@@ -166,7 +158,6 @@ MIT
 
 ---
 
-Trust Marketplace integrates cutting-edge cryptographic protocols ([Seal](frontend/src/utils.ts)), established cryptographic primitives like AES-GCM, decentralized blob storage Walrus, and robust on-chain mechanisms ([Move smart contracts](move/sources/marketplace.move)). Every aspect of security, privacy, and dispute resolution is backed by explicit cryptographic and mathematical proofs, setting a new standard for decentralized interactions.
-Trust Marketplace implements privacy, access control, and dispute resolution using explicit cryptographic protocols (Seal threshold cryptography, AES-GCM) and on-chain state machines (Move). 
+Trust Marketplace integrates cutting-edge cryptographic protocols ([Seal](frontend/src/utils.ts)), established cryptographic primitives like AES-GCM, decentralized blob storage on Walrus, and robust on-chain mechanisms ([Move smart contracts](move/sources/marketplace.move)). Every aspect of security, privacy, access control and dispute resolution is backed by explicit cryptogtaphy and algorithms, setting a new standard for decentralized escrow and p2p Chats.
 
 The project is open to extension and research in decentralized trust, composable reputation, and cryptographic dispute resolution.
