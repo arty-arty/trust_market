@@ -158,8 +158,8 @@ MIT
 
 ---
 
-Trust Marketplace integrates cutting-edge cryptographic protocols ([Seal](frontend/src/utils.ts)), established cryptographic primitives like AES-GCM, decentralized blob storage on Walrus, and robust on-chain mechanisms ([Move smart contracts](move/sources/marketplace.move)). 
+Trust Marketplace integrates cutting-edge cryptographic protocols ([Seal](frontend/src/utils.ts)). It has well established cryptographic primitives like AES-GCM. It uses decentralized blob storage on Walrus, and robust on-chain mechanisms ([Move smart contracts](move/sources/marketplace.move)). 
 
-Every aspect of security, privacy, access control and dispute resolution is backed by explicit cryptogtaphy and algorithms, setting a new standard for decentralized escrow and p2p Chats.
+Every aspect of security, privacy, access control and dispute resolution is backed by explicit cryptogtaphy and algorithms. Trust Marketplace sets a new standard for peer-to-peer Chats with decentralized escrow.
 
 The project is open to extension and research in decentralized trust, composable reputation, and cryptographic dispute resolution.
