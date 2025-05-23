@@ -1,6 +1,6 @@
 # [Trust Marketplace](https://trust-market.netlify.app/)
 
-Trust Marketplace ([view webapp](https://trust-market.netlify.app/)) isn't just another gig platform—it's a rethinking of trust in digital conversations. As if you Chat with strangers, hire them, and a Guardian Angel, called Trust, makes sure you're never scammed for huge $$$s. 
+Trust Marketplace ([view pitch](https://www.youtube.com/watch?v=J3zUxvo8ZBs)) isn't just another gig platform—it's a rethinking of trust in digital conversations ([view webapp](https://trust-market.netlify.app/)). As if you Chat with strangers, hire them, and a Guardian Angel, called Trust, makes sure you're never scammed for huge $$$s. 
 Is this impossible? Who's the Angel? How do they do their tough job? 
 
 Often - monetary Trust - this strong - is governed by centralized institutions, but imagine it emerges directly from cryptographic and blockchain-driven mechanisms. This is precisely what Trust Marketplace brings to the table.
@@ -166,7 +166,7 @@ MIT
 
 ---
 
-Trust Marketplace integrates cutting-edge cryptographic protocols ([Seal](frontend/src/utils.ts)), established cryptographic primitives like AES-GCM, and robust on-chain mechanisms ([Move smart contracts](move/sources/marketplace.move)). Every aspect of security, privacy, and dispute resolution is backed by explicit cryptographic and mathematical proofs, setting a new standard for decentralized interactions.
-Trust Marketplace implements privacy, access control, and dispute resolution using explicit cryptographic protocols (Seal, AES-GCM) and on-chain state machines (Move). 
+Trust Marketplace integrates cutting-edge cryptographic protocols ([Seal](frontend/src/utils.ts)), established cryptographic primitives like AES-GCM, decentralized blob storage Walrus, and robust on-chain mechanisms ([Move smart contracts](move/sources/marketplace.move)). Every aspect of security, privacy, and dispute resolution is backed by explicit cryptographic and mathematical proofs, setting a new standard for decentralized interactions.
+Trust Marketplace implements privacy, access control, and dispute resolution using explicit cryptographic protocols (Seal threshold cryptography, AES-GCM) and on-chain state machines (Move). 
 
 The project is open to extension and research in decentralized trust, composable reputation, and cryptographic dispute resolution.
