@@ -329,6 +329,7 @@ export const joinAdvertisement = async (
       coin,
       tx.pure.vector('u8', Array.from(encryptedKey)),
       tx.object('0x6'), // Clock object
+      tx.object('0x8'), // Random object
     ],
   });
   
