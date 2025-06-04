@@ -103,7 +103,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     if (currentAccount && suiClient) {
       const client = new SealClient({
         suiClient,
-        serverObjectIds: getAllowlistedKeyServers('testnet'),
+        serverConfigs: getAllowlistedKeyServers('testnet').map((id) => ({
+        objectId: id,
+        weight: 1,
+      })),
         verifyKeyServers: false,
       });
       setSealClient(client);
@@ -157,6 +160,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         address: userAddress,
         packageId,
         ttlMin: 10, // 10 minutes TTL
+        suiClient
       });
       
       console.log(`[ChatContext::SessionKey] Getting personal message bytes for user ${userAddress}.`);

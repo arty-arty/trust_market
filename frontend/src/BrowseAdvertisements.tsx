@@ -115,8 +115,11 @@ export function BrowseAdvertisements() {
   // Instantiate SealClient
   const sealClient = new SealClient({
     suiClient,
-    serverObjectIds: getAllowlistedKeyServers('testnet'), // Or 'mainnet' based on config
-    verifyKeyServers: false, // Adjust as needed
+    serverConfigs: getAllowlistedKeyServers('testnet').map((id) => ({
+    objectId: id,
+    weight: 1,
+    })),
+  verifyKeyServers: false,
   });
   
   // Load advertisements
